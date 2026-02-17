@@ -35,7 +35,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
-import { Copy, Edit2, Trash2, Plus, Search, MoreHorizontal } from 'lucide-react'
+import { Copy, Edit2, Trash2, Plus, Search, MoreHorizontal, MessageSquare } from 'lucide-react'
 import {
   Tooltip,
   TooltipContent,
@@ -381,7 +381,7 @@ export default function Home() {
       <main className="flex-1 container mx-auto px-4 py-4">
         <div className="space-y-3">
           {/* Input Form */}
-          <div className="bg-white rounded-xl shadow-lg p-3 border border-slate-200">
+          <div className="bg-white rounded-xl shadow-lg p-3 border border-slate-200 mb-2">
             <form onSubmit={handleAddOrder} className="flex flex-col md:flex-row md:items-end gap-2">
               <div className="flex-grow space-y-2 md:space-y-0 md:flex md:gap-2">
                 <div className="flex-grow min-w-[150px] space-y-1">
@@ -571,8 +571,8 @@ export default function Home() {
               </Table>
             </div>
 
-            {/* Mobile Card View */}
-            <div className="block md:hidden p-4 space-y-3 max-h-[65vh] overflow-y-auto">
+            {/* Mobile List View */}
+            <div className="block md:hidden">
               {loading ? (
                 <p className="text-center py-8 text-slate-500">Загрузка...</p>
               ) : filteredOrders.length === 0 ? (
@@ -580,59 +580,59 @@ export default function Home() {
                   {orders.length === 0 ? 'Нет заказов' : 'Ничего не найдено'}
                 </p>
               ) : (
-                filteredOrders.map((order) => (
-                  <Card key={order.id} className={order.comment ? 'border-amber-500/50' : ''}>
-                    <CardHeader className="flex flex-row items-center justify-between p-4">
-                      <CardTitle className="text-base font-bold">
-                        Заказ #{order.orderNumber}
-                      </CardTitle>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Открыть меню</span>
-                            <MoreHorizontal className="h-4 w-4" />
+                <div className="divide-y divide-slate-100">
+                  {filteredOrders.map((order) => (
+                    <div
+                      key={order.id}
+                      className={`p-4 flex items-center justify-between gap-3 ${order.comment ? 'bg-amber-50/50' : ''}`}
+                    >
+                      <div className="flex-grow space-y-1">
+                        <div className="flex items-center gap-2">
+                           <p className="font-bold text-slate-800">#{order.orderNumber}</p>
+                           {order.comment && <MessageSquare className="w-4 h-4 text-amber-600" />}
+                        </div>
+                        <p className="text-sm text-slate-600">{order.fabricName}</p>
+                         <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleStatusChange(order.id, getNextStatus(order.status))}
+                            className="h-auto p-0 text-xs"
+                          >
+                            {getNextStatusLabel(order.status)}
                           </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleCopy(order)}>
-                            <Copy className="mr-2 h-4 w-4" />
-                            <span>Скопировать</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleOpenComment(order)}>
-                            <Edit2 className="mr-2 h-4 w-4" />
-                            <span>Комментарий</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleDeleteOrder(order.id)} className="text-red-600">
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            <span>Удалить</span>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </CardHeader>
-                    <CardContent className="p-4 pt-0 space-y-3">
-                      <div>
-                        <p className="text-sm font-medium text-slate-800">{order.fabricName}</p>
-                        <p className="text-sm text-slate-600">{order.meters} м</p>
                       </div>
-                      {getStatusBadge(order.status)}
-                      {order.comment && (
-                        <p className="text-sm text-amber-700 bg-amber-50 rounded-md p-2 border border-amber-200">
-                          <span className="font-semibold">Коммент:</span> {order.comment}
-                        </p>
-                      )}
-                    </CardContent>
-                    <CardFooter className="p-4 pt-0">
-                       <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleStatusChange(order.id, getNextStatus(order.status))}
-                        className="h-8 text-xs w-full justify-start"
-                      >
-                        {getNextStatusLabel(order.status)}
-                      </Button>
-                    </CardFooter>
-                  </Card>
-                ))
+
+                      <div className="flex-shrink-0 flex flex-col items-end gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-slate-700 text-sm">{order.meters} м</span>
+                          {getStatusBadge(order.status)}
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Открыть меню</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleCopy(order)}>
+                              <Copy className="mr-2 h-4 w-4" />
+                              <span>Скопировать</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleOpenComment(order)}>
+                              <Edit2 className="mr-2 h-4 w-4" />
+                              <span>Комментарий</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDeleteOrder(order.id)} className="text-red-600">
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              <span>Удалить</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>
