@@ -68,6 +68,7 @@ export default function Home() {
   const [funnelId, setFunnelId] = useState<number | null>(null)
   const [isFetchingCrm, setIsFetchingCrm] = useState(false)
   const [orderNumber, setOrderNumber] = useState('');
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     fetchOrders()
@@ -347,103 +348,108 @@ export default function Home() {
     }
   }
 
+  const filteredOrders = orders.filter(
+    (order) =>
+      order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      order.fabricName.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 to-slate-100">
       <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-6">
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
+        <div className="container mx-auto px-4 py-2 flex items-baseline gap-x-2">
+          <h1 className="text-lg font-bold text-slate-800 tracking-tight">
             HARISMA
           </h1>
-          <p className="text-slate-600 mt-0">Система отслеживания тканей</p>
+          <p className="text-xs text-slate-500">Система отслеживания тканей</p>
         </div>
       </header>
 
-      <main className="flex-1 container mx-auto px-4 py-8">
-        <div className="space-y-4">
+      <main className="flex-1 container mx-auto px-4 py-4">
+        <div className="space-y-3">
           {/* Input Form */}
-          <div className="bg-white rounded-xl shadow-lg p-4 border border-slate-200">
-            <h2 className="text-xl font-semibold text-slate-800 mb-4">
-              Добавить заказ
-            </h2>
-            <form onSubmit={handleAddOrder} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-2 md:col-span-2">
-                <label htmlFor="crmId" className="text-sm font-medium text-slate-700">
-                  ID заказа из CRM
-                </label>
+          <div className="bg-white rounded-xl shadow-lg p-3 border border-slate-200">
+            <form onSubmit={handleAddOrder} className="flex items-end gap-2 flex-wrap">
+              <div className="flex-grow min-w-[150px]">
                 <div className="flex gap-2">
                   <Input
                     id="crmId"
                     type="text"
-                    placeholder="725"
+                    placeholder="ID из CRM"
                     value={newOrder.crmId}
                     onChange={(e) => setNewOrder({ ...newOrder, crmId: e.target.value })}
                     disabled={submitting || isFetchingCrm}
+                    className="h-9"
                   />
                   <Button
                     type="button"
                     onClick={handleFetchCrmDeal}
                     disabled={submitting || isFetchingCrm}
+                    className="h-9"
                   >
-                    <Search className="w-4 h-4 mr-2" />
-                    Найти
+                    <Search className="w-4 h-4" />
                   </Button>
                 </div>
                 {crmOrderTitle && (
-                  <p className="text-sm text-slate-600 mt-1">
+                  <p className="text-xs text-slate-600 mt-1">
                     Найден: <span className="font-semibold">{crmOrderTitle}</span>
                   </p>
                 )}
               </div>
-              <div className="space-y-2">
-                <label htmlFor="fabricName" className="text-sm font-medium text-slate-700">
-                  Название ткани
-                </label>
+              <div className="flex-grow min-w-[150px]">
                 <Input
                   id="fabricName"
                   type="text"
-                  placeholder="Vena 6"
+                  placeholder="Название ткани"
                   value={newOrder.fabricName}
                   onChange={(e) => setNewOrder({ ...newOrder, fabricName: e.target.value })}
                   disabled={submitting}
+                  className="h-9"
                 />
               </div>
-              <div className="space-y-2">
-                <label htmlFor="meters" className="text-sm font-medium text-slate-700">
-                  Метраж
-                </label>
+              <div className="flex-grow min-w-[100px] max-w-[120px]">
                 <Input
                   id="meters"
                   type="number"
                   step="0.1"
-                  placeholder="6.5"
+                  placeholder="Метраж"
                   value={newOrder.meters}
                   onChange={(e) => setNewOrder({ ...newOrder, meters: e.target.value })}
                   disabled={submitting}
+                  className="h-9"
                 />
               </div>
-              <div className="flex items-end md:col-start-4">
-                <Button 
-                  type="submit" 
-                  className="w-full bg-slate-800 hover:bg-slate-900"
-                  disabled={submitting || isFetchingCrm || !crmOrderTitle}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Добавить
-                </Button>
-              </div>
+              <Button 
+                type="submit" 
+                className="h-9 bg-slate-800 hover:bg-slate-900 flex-grow sm:flex-grow-0"
+                disabled={submitting || isFetchingCrm || !crmOrderTitle}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Добавить
+              </Button>
             </form>
           </div>
 
           {/* Orders Table */}
           <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
-            <div className="p-6 border-b border-slate-200">
-              <h2 className="text-xl font-semibold text-slate-800">
+            <div className="p-4 border-b border-slate-200 flex justify-between items-center">
+              <h2 className="text-lg font-semibold text-slate-800">
                 Все заказы
               </h2>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input
+                  type="text"
+                  placeholder="Поиск по номеру или ткани..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 h-9 max-w-xs"
+                />
+              </div>
             </div>
             <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
               <Table>
-                <TableHeader className="sticky top-0 bg-slate-50">
+                <TableHeader className="sticky top-0 bg-slate-50 z-10">
                   <TableRow>
                     <TableHead className="font-semibold text-slate-700">Номер заказа</TableHead>
                     <TableHead className="font-semibold text-slate-700">Название ткани</TableHead>
@@ -460,14 +466,14 @@ export default function Home() {
                         Загрузка...
                       </TableCell>
                     </TableRow>
-                  ) : orders.length === 0 ? (
+                  ) : filteredOrders.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-8 text-slate-500">
-                        Нет заказов
+                        {orders.length === 0 ? 'Нет заказов' : 'Ничего не найдено'}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    orders.map((order) => (
+                    filteredOrders.map((order) => (
                       <TableRow 
                         key={order.id} 
                         className={order.comment ? 'bg-amber-500/10 hover:bg-amber-500/20' : ''}
