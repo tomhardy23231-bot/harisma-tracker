@@ -378,10 +378,10 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="flex-1 container mx-auto px-4 py-4">
-        <div className="space-y-3">
+      <main className="flex-1 container mx-auto px-4 py-4 flex flex-col">
+        <div className="space-y-3 flex flex-col flex-grow">
           {/* Input Form */}
-          <div className="bg-white rounded-xl shadow-lg p-3 border border-slate-200 mb-2">
+          <div className="bg-white rounded-xl shadow-lg p-3 border border-slate-200">
             <form onSubmit={handleAddOrder} className="flex flex-col md:flex-row md:items-end gap-2">
               <div className="flex-grow space-y-2 md:space-y-0 md:flex md:gap-2">
                 <div className="flex-grow min-w-[150px] space-y-1">
@@ -446,7 +446,7 @@ export default function Home() {
           </div>
 
           {/* Orders Display */}
-          <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
+          <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden flex-grow flex flex-col">
             <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:justify-between md:items-center gap-3">
               <h2 className="text-lg font-semibold text-slate-800">
                 Все заказы
@@ -464,7 +464,7 @@ export default function Home() {
             </div>
 
             {/* Desktop Table View */}
-            <div className="overflow-x-auto max-h-[600px] overflow-y-auto hidden md:block">
+            <div className="overflow-y-auto hidden md:block flex-grow">
               <Table>
                 <TableHeader className="sticky top-0 bg-slate-50 z-10">
                   <TableRow>
