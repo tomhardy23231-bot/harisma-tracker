@@ -12,6 +12,19 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -22,7 +35,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
-import { Copy, Edit2, Trash2, Plus, Search } from 'lucide-react'
+import { Copy, Edit2, Trash2, Plus, Search, MoreHorizontal } from 'lucide-react'
 import {
   Tooltip,
   TooltipContent,
@@ -356,7 +369,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 to-slate-100">
-      <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-10">
+      <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-20">
         <div className="container mx-auto px-4 py-2 flex items-baseline gap-x-2">
           <h1 className="text-lg font-bold text-slate-800 tracking-tight">
             HARISMA
@@ -369,59 +382,61 @@ export default function Home() {
         <div className="space-y-3">
           {/* Input Form */}
           <div className="bg-white rounded-xl shadow-lg p-3 border border-slate-200">
-            <form onSubmit={handleAddOrder} className="flex items-end gap-2 flex-wrap">
-              <div className="flex-grow min-w-[150px]">
-                <div className="flex gap-2">
-                  <Input
-                    id="crmId"
-                    type="text"
-                    placeholder="ID из CRM"
-                    value={newOrder.crmId}
-                    onChange={(e) => setNewOrder({ ...newOrder, crmId: e.target.value })}
-                    disabled={submitting || isFetchingCrm}
-                    className="h-9"
-                  />
-                  <Button
-                    type="button"
-                    onClick={handleFetchCrmDeal}
-                    disabled={submitting || isFetchingCrm}
-                    className="h-9"
-                  >
-                    <Search className="w-4 h-4" />
-                  </Button>
+            <form onSubmit={handleAddOrder} className="flex flex-col md:flex-row md:items-end gap-2">
+              <div className="flex-grow space-y-2 md:space-y-0 md:flex md:gap-2">
+                <div className="flex-grow min-w-[150px] space-y-1">
+                  <div className="flex gap-2">
+                    <Input
+                      id="crmId"
+                      type="text"
+                      placeholder="ID из CRM"
+                      value={newOrder.crmId}
+                      onChange={(e) => setNewOrder({ ...newOrder, crmId: e.target.value })}
+                      disabled={submitting || isFetchingCrm}
+                      className="h-9 w-full"
+                    />
+                    <Button
+                      type="button"
+                      onClick={handleFetchCrmDeal}
+                      disabled={submitting || isFetchingCrm}
+                      className="h-9"
+                    >
+                      <Search className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  {crmOrderTitle && (
+                    <p className="text-xs text-slate-600 mt-1">
+                      Найден: <span className="font-semibold">{crmOrderTitle}</span>
+                    </p>
+                  )}
                 </div>
-                {crmOrderTitle && (
-                  <p className="text-xs text-slate-600 mt-1">
-                    Найден: <span className="font-semibold">{crmOrderTitle}</span>
-                  </p>
-                )}
+                <div className="flex-grow min-w-[150px]">
+                  <Input
+                    id="fabricName"
+                    type="text"
+                    placeholder="Название ткани"
+                    value={newOrder.fabricName}
+                    onChange={(e) => setNewOrder({ ...newOrder, fabricName: e.target.value })}
+                    disabled={submitting}
+                    className="h-9 w-full"
+                  />
+                </div>
+                <div className="flex-grow min-w-[100px] md:max-w-[120px]">
+                  <Input
+                    id="meters"
+                    type="number"
+                    step="0.1"
+                    placeholder="Метраж"
+                    value={newOrder.meters}
+                    onChange={(e) => setNewOrder({ ...newOrder, meters: e.target.value })}
+                    disabled={submitting}
+                    className="h-9 w-full"
+                  />
+                </div>
               </div>
-              <div className="flex-grow min-w-[150px]">
-                <Input
-                  id="fabricName"
-                  type="text"
-                  placeholder="Название ткани"
-                  value={newOrder.fabricName}
-                  onChange={(e) => setNewOrder({ ...newOrder, fabricName: e.target.value })}
-                  disabled={submitting}
-                  className="h-9"
-                />
-              </div>
-              <div className="flex-grow min-w-[100px] max-w-[120px]">
-                <Input
-                  id="meters"
-                  type="number"
-                  step="0.1"
-                  placeholder="Метраж"
-                  value={newOrder.meters}
-                  onChange={(e) => setNewOrder({ ...newOrder, meters: e.target.value })}
-                  disabled={submitting}
-                  className="h-9"
-                />
-              </div>
-              <Button 
-                type="submit" 
-                className="h-9 bg-slate-800 hover:bg-slate-900 flex-grow sm:flex-grow-0"
+              <Button
+                type="submit"
+                className="h-9 w-full md:w-auto bg-slate-800 hover:bg-slate-900"
                 disabled={submitting || isFetchingCrm || !crmOrderTitle}
               >
                 <Plus className="w-4 h-4 mr-2" />
@@ -430,24 +445,26 @@ export default function Home() {
             </form>
           </div>
 
-          {/* Orders Table */}
+          {/* Orders Display */}
           <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
-            <div className="p-4 border-b border-slate-200 flex justify-between items-center">
+            <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:justify-between md:items-center gap-3">
               <h2 className="text-lg font-semibold text-slate-800">
                 Все заказы
               </h2>
-              <div className="relative">
+              <div className="relative w-full md:w-auto">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <Input
                   type="text"
                   placeholder="Поиск по номеру или ткани..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 h-9 max-w-xs"
+                  className="pl-9 h-9 w-full md:max-w-xs"
                 />
               </div>
             </div>
-            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+
+            {/* Desktop Table View */}
+            <div className="overflow-x-auto max-h-[600px] overflow-y-auto hidden md:block">
               <Table>
                 <TableHeader className="sticky top-0 bg-slate-50 z-10">
                   <TableRow>
@@ -474,8 +491,8 @@ export default function Home() {
                     </TableRow>
                   ) : (
                     filteredOrders.map((order) => (
-                      <TableRow 
-                        key={order.id} 
+                      <TableRow
+                        key={order.id}
                         className={order.comment ? 'bg-amber-500/10 hover:bg-amber-500/20' : ''}
                       >
                         <TableCell className="font-medium text-slate-800">{order.orderNumber}</TableCell>
@@ -518,52 +535,31 @@ export default function Home() {
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleCopy(order)}
-                                    className="h-8 w-8 p-0"
-                                  >
+                                  <Button size="sm" variant="ghost" onClick={() => handleCopy(order)} className="h-8 w-8 p-0">
                                     <Copy className="h-4 w-4" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Скопировать</p>
-                                </TooltipContent>
+                                <TooltipContent><p>Скопировать</p></TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleOpenComment(order)}
-                                    className="h-8 w-8 p-0"
-                                  >
+                                  <Button size="sm" variant="ghost" onClick={() => handleOpenComment(order)} className="h-8 w-8 p-0">
                                     <Edit2 className="h-4 w-4" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Редактировать комментарий</p>
-                                </TooltipContent>
+                                <TooltipContent><p>Редактировать комментарий</p></TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleDeleteOrder(order.id)}
-                                    className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                  >
+                                  <Button size="sm" variant="ghost" onClick={() => handleDeleteOrder(order.id)} className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50">
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Удалить</p>
-                                </TooltipContent>
+                                <TooltipContent><p>Удалить</p></TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
                           </div>
@@ -573,6 +569,71 @@ export default function Home() {
                   )}
                 </TableBody>
               </Table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="block md:hidden p-4 space-y-3 max-h-[65vh] overflow-y-auto">
+              {loading ? (
+                <p className="text-center py-8 text-slate-500">Загрузка...</p>
+              ) : filteredOrders.length === 0 ? (
+                <p className="text-center py-8 text-slate-500">
+                  {orders.length === 0 ? 'Нет заказов' : 'Ничего не найдено'}
+                </p>
+              ) : (
+                filteredOrders.map((order) => (
+                  <Card key={order.id} className={order.comment ? 'border-amber-500/50' : ''}>
+                    <CardHeader className="flex flex-row items-center justify-between p-4">
+                      <CardTitle className="text-base font-bold">
+                        Заказ #{order.orderNumber}
+                      </CardTitle>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Открыть меню</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleCopy(order)}>
+                            <Copy className="mr-2 h-4 w-4" />
+                            <span>Скопировать</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleOpenComment(order)}>
+                            <Edit2 className="mr-2 h-4 w-4" />
+                            <span>Комментарий</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleDeleteOrder(order.id)} className="text-red-600">
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            <span>Удалить</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </CardHeader>
+                    <CardContent className="p-4 pt-0 space-y-3">
+                      <div>
+                        <p className="text-sm font-medium text-slate-800">{order.fabricName}</p>
+                        <p className="text-sm text-slate-600">{order.meters} м</p>
+                      </div>
+                      {getStatusBadge(order.status)}
+                      {order.comment && (
+                        <p className="text-sm text-amber-700 bg-amber-50 rounded-md p-2 border border-amber-200">
+                          <span className="font-semibold">Коммент:</span> {order.comment}
+                        </p>
+                      )}
+                    </CardContent>
+                    <CardFooter className="p-4 pt-0">
+                       <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleStatusChange(order.id, getNextStatus(order.status))}
+                        className="h-8 text-xs w-full justify-start"
+                      >
+                        {getNextStatusLabel(order.status)}
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -599,8 +660,8 @@ export default function Home() {
             />
           </div>
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 setEditingComment(null)
                 setCommentText('')
