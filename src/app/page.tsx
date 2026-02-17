@@ -351,17 +351,17 @@ export default function Home() {
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 to-slate-100">
       <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 py-6">
-          <h1 className="text-4xl font-bold text-slate-800 tracking-tight">
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
             HARISMA
           </h1>
-          <p className="text-slate-600 mt-1">Система отслеживания тканей</p>
+          <p className="text-slate-600 mt-0">Система отслеживания тканей</p>
         </div>
       </header>
 
       <main className="flex-1 container mx-auto px-4 py-8">
-        <div className="space-y-8">
+        <div className="space-y-4">
           {/* Input Form */}
-          <div className="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
+          <div className="bg-white rounded-xl shadow-lg p-4 border border-slate-200">
             <h2 className="text-xl font-semibold text-slate-800 mb-4">
               Добавить заказ
             </h2>
