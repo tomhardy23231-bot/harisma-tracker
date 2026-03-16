@@ -168,16 +168,27 @@ export function OrderList({ status }: OrderListProps) {
     return <Badge className={color}>{label}</Badge>
   }
 
+  // Smart Search Logic
   const filteredOrders = orders
-    .filter((order) => order.status === status)
-    .filter((order) =>
-      order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.fabricName.toLowerCase().includes(searchQuery.toLowerCase())
-    )
+    .filter((order) => {
+      if (searchQuery.length === 0) {
+        return order.status === status
+      }
+      
+      const search = searchQuery.toLowerCase()
+      return (
+        order.orderNumber.toLowerCase().includes(search) ||
+        order.fabricName.toLowerCase().includes(search) ||
+        (order.comment && order.comment.toLowerCase().includes(search))
+      )
+    })
     .sort((a, b) => parseInt(a.orderNumber) - parseInt(b.orderNumber))
 
   const renderActions = (order: FabricOrder) => {
-    if (status === 'PENDING') {
+    // Actions based on individual order status for global search consistency
+    const currentStatus = order.status
+    
+    if (currentStatus === 'PENDING') {
       return (
         <Button size="sm" variant="outline" onClick={() => statusMutation.mutate({ orderId: order.id, newStatus: 'ORDERED' })} className="h-8 gap-1">
           <ArrowRight className="w-3 h-3" />
@@ -185,7 +196,7 @@ export function OrderList({ status }: OrderListProps) {
         </Button>
       )
     }
-    if (status === 'ORDERED') {
+    if (currentStatus === 'ORDERED') {
       return (
         <Button size="sm" variant="outline" onClick={() => statusMutation.mutate({ orderId: order.id, newStatus: 'ARRIVED' })} className="h-8 gap-1">
           <ArrowRight className="w-3 h-3" />
@@ -193,7 +204,7 @@ export function OrderList({ status }: OrderListProps) {
         </Button>
       )
     }
-    if (status === 'ARRIVED') {
+    if (currentStatus === 'ARRIVED') {
       return (
         <div className="flex gap-2">
            <TooltipProvider>
@@ -212,7 +223,7 @@ export function OrderList({ status }: OrderListProps) {
         </div>
       )
     }
-    if (status === 'ARCHIVED') {
+    if (currentStatus === 'ARCHIVED') {
         return (
           <div className="flex gap-2">
             <TooltipProvider>
@@ -234,20 +245,30 @@ export function OrderList({ status }: OrderListProps) {
     return null
   }
 
+  const getPageTitle = () => {
+    if (searchQuery.length > 0) return 'Результаты поиска'
+    
+    switch(status) {
+      case 'PENDING': return 'Нужно заказать'
+      case 'ORDERED': return 'Заказано'
+      case 'ARRIVED': return 'На складе'
+      case 'ARCHIVED': return 'Архив'
+      default: return 'Заказы'
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
         <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:justify-between md:items-center gap-3">
           <h2 className="text-lg font-semibold text-slate-800">
-            {status === 'PENDING' ? 'Нужно заказать' : 
-             status === 'ORDERED' ? 'Заказано' : 
-             status === 'ARRIVED' ? 'На складе' : 'Архив'}
+            {getPageTitle()}
           </h2>
           <div className="relative w-full md:w-auto">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <Input
               type="text"
-              placeholder="Поиск..."
+              placeholder="Поиск по №, ткани или комм..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 h-9 w-full md:max-w-xs"
@@ -289,7 +310,7 @@ export function OrderList({ status }: OrderListProps) {
                         <div className="flex items-center gap-2">
                           <span 
                             className="cursor-pointer hover:underline" 
-                            onClick={() => (status === 'ARRIVED' || status === 'ARCHIVED') && setTimelineOrder(order)}
+                            onClick={() => (order.status === 'ARRIVED' || order.status === 'ARCHIVED') && setTimelineOrder(order)}
                           >
                             {order.orderNumber}
                           </span>
@@ -361,7 +382,7 @@ export function OrderList({ status }: OrderListProps) {
                         <div className="flex items-center gap-2">
                            <span 
                              className="font-bold cursor-pointer underline decoration-slate-300" 
-                             onClick={() => (status === 'ARRIVED' || status === 'ARCHIVED') && setTimelineOrder(order)}
+                             onClick={() => (order.status === 'ARRIVED' || order.status === 'ARCHIVED') && setTimelineOrder(order)}
                            >
                              #{order.orderNumber}
                            </span>
