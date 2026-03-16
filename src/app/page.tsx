@@ -3,11 +3,11 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useToast } from '@/hooks/use-toast'
 import { Plus, Search } from 'lucide-react'
 import { getKeepinCrmDeal } from '@/app/actions'
 import { OrderList } from '@/components/OrderList'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 
 interface NewOrder {
   crmId: string
@@ -21,7 +21,6 @@ export default function PendingOrdersPage() {
     fabricName: '',
     meters: '',
   })
-  const { toast } = useToast()
   const [crmOrderTitle, setCrmOrderTitle] = useState<string | null>(null)
   const [funnelId, setFunnelId] = useState<number | null>(null)
   const [isFetchingCrm, setIsFetchingCrm] = useState(false)
@@ -30,11 +29,7 @@ export default function PendingOrdersPage() {
 
   const handleFetchCrmDeal = async () => {
     if (!newOrder.crmId) {
-      toast({
-        variant: 'destructive',
-        title: 'Ошибка',
-        description: 'Введите ID заказа из CRM',
-      })
+      toast.error('Введите ID заказа из CRM')
       return
     }
     setIsFetchingCrm(true)
@@ -43,17 +38,10 @@ export default function PendingOrdersPage() {
       setCrmOrderTitle(deal.title)
       setFunnelId(deal.funnelId)
       setOrderNumber(deal.orderNumber)
-      toast({
-        title: 'Успешно',
-        description: `Найден заказ: ${deal.title}`,
-      })
+      toast.success(`🔍 Найден заказ: ${deal.title}`)
     } catch (error) {
       console.error('Error fetching CRM deal:', error)
-      toast({
-        variant: 'destructive',
-        title: 'Ошибка',
-        description: 'Не удалось найти заказ в CRM',
-      })
+      toast.error('Не удалось найти заказ в CRM')
       setCrmOrderTitle(null)
       setFunnelId(null)
     } finally {
@@ -86,20 +74,16 @@ export default function PendingOrdersPage() {
       if (!response.ok) throw new Error('Failed to create order')
       return response.json()
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['fabric-orders'] })
       setNewOrder({ crmId: '', fabricName: '', meters: '' })
       setCrmOrderTitle(null)
       setFunnelId(null)
-      toast({ title: 'Успешно', description: 'Заказ добавлен' })
+      toast.success(`✨ Заказ #${data.orderNumber} (${data.fabricName}) успешно добавлен`)
     },
     onError: (error: any) => {
       console.error('Error creating order:', error)
-      toast({
-        variant: 'destructive',
-        title: 'Ошибка',
-        description: error.message === 'Fill all fields' ? 'Заполните все видимые поля' : 'Не удалось добавить заказ',
-      })
+      toast.error(error.message === 'Fill all fields' ? 'Заполните все видимые поля' : 'Не удалось добавить заказ')
     }
   })
 

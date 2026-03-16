@@ -20,14 +20,13 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { useToast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
 import { Copy, Edit2, Trash2, Search, MoreHorizontal, MessageSquare, Archive, ArrowRight, RotateCcw } from 'lucide-react'
 import {
   Tooltip,
@@ -39,6 +38,7 @@ import { updateKeepinCrmStage } from '@/app/actions'
 import { OrderTimelineModal } from './OrderTimelineModal'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import { motion, AnimatePresence } from 'framer-motion'
 
 export type OrderStatus = 'PENDING' | 'ORDERED' | 'ARRIVED' | 'ARCHIVED'
 
@@ -67,7 +67,6 @@ export function OrderList({ status }: OrderListProps) {
   const [editingComment, setEditingComment] = useState<FabricOrder | null>(null)
   const [commentText, setCommentText] = useState('')
   const [timelineOrder, setTimelineOrder] = useState<FabricOrder | null>(null)
-  const { toast } = useToast()
   const queryClient = useQueryClient()
 
   const { data: orders = [], isLoading } = useQuery<FabricOrder[]>({
@@ -92,15 +91,25 @@ export function OrderList({ status }: OrderListProps) {
         body: JSON.stringify({ status: newStatus }),
       })
       if (!response.ok) throw new Error('Failed to update status')
-      return response.json()
+      return { order, newStatus }
     },
-    onSuccess: () => {
+    onSuccess: ({ order, newStatus }) => {
       queryClient.invalidateQueries({ queryKey: ['fabric-orders'] })
-      toast({ title: 'Успешно', description: 'Статус обновлен' })
+      
+      const statusLabels: Record<OrderStatus, string> = {
+        PENDING: 'Нужно заказать',
+        ORDERED: 'Заказано',
+        ARRIVED: 'На складе',
+        ARCHIVED: 'Архив'
+      }
+      
+      const icon = newStatus === 'ORDERED' ? '📦' : newStatus === 'ARRIVED' ? '✅' : newStatus === 'ARCHIVED' ? '🗄️' : '🔄'
+      
+      toast(`${icon} Заказ #${order?.orderNumber} (${order?.fabricName}) успешно перемещен в '${statusLabels[newStatus]}'`)
     },
     onError: (error) => {
       console.error('Error updating status:', error)
-      toast({ variant: 'destructive', title: 'Ошибка', description: 'Не удалось обновить статус' })
+      toast.error('Ошибка: Не удалось обновить статус')
     }
   })
 
@@ -111,11 +120,11 @@ export function OrderList({ status }: OrderListProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['fabric-orders'] })
-      toast({ title: 'Успешно', description: 'Заказ удален' })
+      toast.success('🗑️ Заказ успешно удален')
     },
     onError: (error) => {
       console.error('Error deleting order:', error)
-      toast({ variant: 'destructive', title: 'Ошибка', description: 'Не удалось удалить заказ' })
+      toast.error('Ошибка: Не удалось удалить заказ')
     }
   })
 
@@ -134,18 +143,18 @@ export function OrderList({ status }: OrderListProps) {
       queryClient.invalidateQueries({ queryKey: ['fabric-orders'] })
       setEditingComment(null)
       setCommentText('')
-      toast({ title: 'Успешно', description: 'Комментарий сохранен' })
+      toast.success('📝 Комментарий сохранен')
     },
     onError: (error) => {
       console.error('Error saving comment:', error)
-      toast({ variant: 'destructive', title: 'Ошибка', description: 'Не удалось сохранить комментарий' })
+      toast.error('Ошибка: Не удалось сохранить комментарий')
     }
   })
 
   const handleCopy = (order: FabricOrder) => {
     const text = `${order.fabricName} ${order.meters}м (№${order.orderNumber})`
     navigator.clipboard.writeText(text)
-    toast({ title: 'Скопировано!' })
+    toast.success('📋 Данные заказа скопированы')
   }
 
   const getStatusBadge = (status: OrderStatus) => {
@@ -265,39 +274,65 @@ export function OrderList({ status }: OrderListProps) {
               ) : filteredOrders.length === 0 ? (
                 <TableRow><TableCell colSpan={6} className="text-center py-8">Ничего не найдено</TableCell></TableRow>
               ) : (
-                filteredOrders.map((order) => (
-                  <TableRow key={order.id} className={cn("hover:bg-slate-50", order.comment && "bg-amber-500/5")}>
-                    <TableCell className="font-medium cursor-pointer" onClick={() => (status === 'ARRIVED' || status === 'ARCHIVED') && setTimelineOrder(order)}>
-                        {order.orderNumber}
-                    </TableCell>
-                    <TableCell>{order.fabricName}</TableCell>
-                    <TableCell>{order.meters} м</TableCell>
-                    <TableCell>{getStatusBadge(order.status)}</TableCell>
-                    <TableCell>
-                      {order.comment ? (
-                         <div className="flex items-center gap-2">
-                           <span className="line-clamp-1 max-w-[150px]">{order.comment}</span>
-                           <span className="text-amber-600 text-xs font-medium">(есть)</span>
-                         </div>
-                      ) : <span className="text-slate-400">Нет</span>}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-2">
-                        {renderActions(order)}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleCopy(order)}><Copy className="mr-2 h-4 w-4" />Копировать</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => { setEditingComment(order); setCommentText(order.comment || '') }}><Edit2 className="mr-2 h-4 w-4" />Комментарий</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => deleteMutation.mutate(order.id)} className="text-red-600"><Trash2 className="mr-2 h-4 w-4" />Удалить</DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+                <AnimatePresence mode="popLayout">
+                  {filteredOrders.map((order) => (
+                    <motion.tr
+                      layout
+                      key={order.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.2 }}
+                      className={cn("hover:bg-slate-50 transition-colors border-b", order.comment && "bg-amber-500/5")}
+                    >
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <span 
+                            className="cursor-pointer hover:underline" 
+                            onClick={() => (status === 'ARRIVED' || status === 'ARCHIVED') && setTimelineOrder(order)}
+                          >
+                            {order.orderNumber}
+                          </span>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button size="sm" variant="ghost" onClick={() => handleCopy(order)} className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600">
+                                  <Copy className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent><p>Скопировать заказ</p></TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                      </TableCell>
+                      <TableCell>{order.fabricName}</TableCell>
+                      <TableCell>{order.meters} м</TableCell>
+                      <TableCell>{getStatusBadge(order.status)}</TableCell>
+                      <TableCell>
+                        {order.comment ? (
+                           <div className="flex items-center gap-2">
+                             <span className="line-clamp-1 max-w-[150px]">{order.comment}</span>
+                             <span className="text-amber-600 text-xs font-medium">(есть)</span>
+                           </div>
+                        ) : <span className="text-slate-400">Нет</span>}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-end gap-2">
+                          {renderActions(order)}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => { setEditingComment(order); setCommentText(order.comment || '') }}><Edit2 className="mr-2 h-4 w-4" />Комментарий</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => deleteMutation.mutate(order.id)} className="text-red-600"><Trash2 className="mr-2 h-4 w-4" />Удалить</DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </TableCell>
+                    </motion.tr>
+                  ))}
+                </AnimatePresence>
               )}
             </TableBody>
           </Table>
@@ -310,36 +345,61 @@ export function OrderList({ status }: OrderListProps) {
           ) : filteredOrders.length === 0 ? (
             <p className="text-center py-8 text-slate-500">Ничего не найдено</p>
           ) : (
-            filteredOrders.map((order) => (
-              <div key={order.id} className={cn("p-4 space-y-3", order.comment && "bg-amber-50/50")}>
-                <div className="flex justify-between items-start">
-                  <div className="space-y-1" onClick={() => (status === 'ARRIVED' || status === 'ARCHIVED') && setTimelineOrder(order)}>
-                    <div className="flex items-center gap-2">
-                       <span className="font-bold">#{order.orderNumber}</span>
-                       {order.comment && <MessageSquare className="w-4 h-4 text-amber-600" />}
+            <div className="flex flex-col">
+              <AnimatePresence mode="popLayout">
+                {filteredOrders.map((order) => (
+                  <motion.div
+                    layout
+                    key={order.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    className={cn("p-4 space-y-3 border-b", order.comment && "bg-amber-50/50")}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                           <span 
+                             className="font-bold cursor-pointer underline decoration-slate-300" 
+                             onClick={() => (status === 'ARRIVED' || status === 'ARCHIVED') && setTimelineOrder(order)}
+                           >
+                             #{order.orderNumber}
+                           </span>
+                           <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button size="sm" variant="ghost" onClick={() => handleCopy(order)} className="h-7 w-7 p-0 text-slate-400">
+                                  <Copy className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent><p>Скопировать</p></TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                           {order.comment && <MessageSquare className="w-4 h-4 text-amber-600" />}
+                        </div>
+                        <p className="text-sm text-slate-600">{order.fabricName}</p>
+                        <p className="text-sm font-medium">{order.meters} м</p>
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        {getStatusBadge(order.status)}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => { setEditingComment(order); setCommentText(order.comment || '') }}><Edit2 className="mr-2 h-4 w-4" />Комментарий</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => deleteMutation.mutate(order.id)} className="text-red-600"><Trash2 className="mr-2 h-4 w-4" />Удалить</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </div>
-                    <p className="text-sm text-slate-600">{order.fabricName}</p>
-                    <p className="text-sm font-medium">{order.meters} м</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    {getStatusBadge(order.status)}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleCopy(order)}><Copy className="mr-2 h-4 w-4" />Копировать</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => { setEditingComment(order); setCommentText(order.comment || '') }}><Edit2 className="mr-2 h-4 w-4" />Комментарий</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => deleteMutation.mutate(order.id)} className="text-red-600"><Trash2 className="mr-2 h-4 w-4" />Удалить</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-                <div className="flex justify-end">
-                   {renderActions(order)}
-                </div>
-              </div>
-            ))
+                    <div className="flex justify-end">
+                       {renderActions(order)}
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
           )}
         </div>
       </div>
