@@ -11,18 +11,28 @@ export async function PATCH(
     const body = await request.json();
     const { status } = body;
 
-    if (!status || !["PENDING", "ORDERED", "ARRIVED"].includes(status)) {
+    if (!status || !["PENDING", "ORDERED", "ARRIVED", "ARCHIVED"].includes(status)) {
       return NextResponse.json(
         { error: "Invalid status" },
         { status: 400 }
       );
     }
 
+    const data: any = {
+      status: status as OrderStatus,
+    };
+
+    if (status === "ORDERED") {
+      data.orderedAt = new Date();
+    } else if (status === "ARRIVED") {
+      data.arrivedAt = new Date();
+    } else if (status === "ARCHIVED") {
+      data.archivedAt = new Date();
+    }
+
     const order = await db.fabricOrder.update({
       where: { id },
-      data: {
-        status: status as OrderStatus,
-      },
+      data,
     });
 
     return NextResponse.json(order);

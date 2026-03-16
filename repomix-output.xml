@@ -41,6 +41,7 @@ The content is organized as follows:
 
 <directory_structure>
 .dockerignore
+.gitattributes
 .gitignore
 .zscripts/build.sh
 .zscripts/mini-services-build.sh
@@ -49,7 +50,6 @@ The content is organized as follows:
 .zscripts/start.sh
 Caddyfile
 components.json
-db/custom.db
 download/README.md
 eslint.config.mjs
 examples/websocket/frontend.tsx
@@ -58,7 +58,6 @@ mini-services/.gitkeep
 next.config.ts
 package.json
 postcss.config.mjs
-prisma/dev.db
 prisma/schema.prisma
 public/logo.svg
 public/robots.txt
@@ -150,6 +149,11 @@ test
 local-*
 </file>
 
+<file path=".gitattributes">
+# Auto detect text files and perform LF normalization
+* text=auto
+</file>
+
 <file path=".gitignore">
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
@@ -202,6 +206,8 @@ prompt
 server.log
 # Skills directory
 /skills/
+*.db
+*.db-journal
 </file>
 
 <file path=".zscripts/build.sh">
@@ -1176,21 +1182,6 @@ process.on('SIGINT', () => {
 
 </file>
 
-<file path="next.config.ts">
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
-  output: "standalone",
-  /* config options here */
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  reactStrictMode: false,
-};
-
-export default nextConfig;
-</file>
-
 <file path="package.json">
 {
   "name": "nextjs_tailwind_shadcn_ts",
@@ -1198,7 +1189,7 @@ export default nextConfig;
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
+    "build": "prisma generate && next build",
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",
     "db:push": "prisma db push",
@@ -1308,8 +1299,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider     = "postgresql"
+  url          = env("POSTGRES_PRISMA_URL")
+  directUrl    = env("POSTGRES_URL_NON_POOLING")
 }
 
 model User {
@@ -1348,38 +1340,6 @@ model FabricOrder {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 }
-</file>
-
-<file path="public/logo.svg">
-<?xml version="1.0" encoding="utf-8"?>
-<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
-	 viewBox="0 0 30 30" style="enable-background:new 0 0 30 30;" xml:space="preserve">
-<defs>
-  <style type="text/css">
-    .st194{fill:#2D2D2D;stroke:#FFFFFF;stroke-width:0.6317;stroke-miterlimit:10;}
-    .st23{fill:#FFFFFF;}
-
-    .z-breathe {
-      animation: breathe 2.5s ease-in-out infinite;
-    }
-
-    @keyframes breathe {
-      0%, 100% { opacity: 0.7; }
-      50% { opacity: 1; }
-    }
-  </style>
-</defs>
-
-<g>
-  <path class="st194" d="M24.51,28.51H5.49c-2.21,0-4-1.79-4-4V5.49c0-2.21,1.79-4,4-4h19.03c2.21,0,4,1.79,4,4v19.03
-    C28.51,26.72,26.72,28.51,24.51,28.51z"/>
-  <g class="z-breathe">
-    <path class="st23" d="M15.47,7.1l-1.3,1.85c-0.2,0.29-0.54,0.47-0.9,0.47h-7.1V7.09C6.16,7.1,15.47,7.1,15.47,7.1z"/>
-    <polygon class="st23" points="24.3,7.1 13.14,22.91 5.7,22.91 16.86,7.1"/>
-    <path class="st23" d="M14.53,22.91l1.31-1.86c0.2-0.29,0.54-0.47,0.9-0.47h7.09v2.33H14.53z"/>
-  </g>
-</g>
-</svg>
 </file>
 
 <file path="public/robots.txt">
@@ -1859,65 +1819,6 @@ export async function GET() {
 }
 </file>
 
-<file path="src/app/layout.tsx">
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import { Toaster } from "@/components/ui/toaster";
-import QueryProvider from "./query-provider";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-export const metadata: Metadata = {
-  title: "Z.ai Code Scaffold - AI-Powered Development",
-  description: "Modern Next.js scaffold optimized for AI-powered development with Z.ai. Built with TypeScript, Tailwind CSS, and shadcn/ui.",
-  keywords: ["Z.ai", "Next.js", "TypeScript", "Tailwind CSS", "shadcn/ui", "AI development", "React"],
-  authors: [{ name: "Z.ai Team" }],
-  icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
-  },
-  openGraph: {
-    title: "Z.ai Code Scaffold",
-    description: "AI-powered development with modern React stack",
-    url: "https://chat.z.ai",
-    siteName: "Z.ai",
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Z.ai Code Scaffold",
-    description: "AI-powered development with modern React stack",
-  },
-};
-
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  return (
-    <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
-      >
-        <QueryProvider>
-          {children}
-        </QueryProvider>
-        <Toaster />
-      </body>
-    </html>
-  );
-}
-</file>
-
 <file path="src/app/orders/page.tsx">
 "use client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -2147,622 +2048,6 @@ export default function OrdersPage() {
       </Card>
     </div>
   );
-}
-</file>
-
-<file path="src/app/page.tsx">
-'use client'
-
-import { useEffect, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
-import { useToast } from '@/hooks/use-toast'
-import { Copy, Edit2, Trash2, Plus, Search } from 'lucide-react'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
-import { getKeepinCrmDeal, updateKeepinCrmStage } from '@/app/actions'
-
-type OrderStatus = 'PENDING' | 'ORDERED' | 'ARRIVED'
-
-interface FabricOrder {
-  id: string
-  orderNumber: string
-  fabricName: string
-  meters: number
-  status: OrderStatus
-  comment: string | null
-  crmId: number | null
-  funnelId: number | null
-  createdAt: string
-  updatedAt: string
-}
-
-interface NewOrder {
-  crmId: string
-  fabricName: string
-  meters: string
-}
-
-export default function Home() {
-  const [orders, setOrders] = useState<FabricOrder[]>([])
-  const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
-  const [newOrder, setNewOrder] = useState<NewOrder>({
-    crmId: '',
-    fabricName: '',
-    meters: '',
-  })
-  const [editingComment, setEditingComment] = useState<FabricOrder | null>(null)
-  const [commentText, setCommentText] = useState('')
-  const { toast } = useToast()
-  const [crmOrderTitle, setCrmOrderTitle] = useState<string | null>(null)
-  const [funnelId, setFunnelId] = useState<number | null>(null)
-  const [isFetchingCrm, setIsFetchingCrm] = useState(false)
-  const [orderNumber, setOrderNumber] = useState('');
-
-  useEffect(() => {
-    fetchOrders()
-  }, [])
-
-  const fetchOrders = async () => {
-    try {
-      const response = await fetch('/api/fabric-orders')
-      const data = await response.json()
-      setOrders(data)
-    } catch (error) {
-      console.error('Error fetching orders:', error)
-      toast({
-        variant: 'destructive',
-        title: 'Ошибка',
-        description: 'Не удалось загрузить заказы',
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleFetchCrmDeal = async () => {
-    if (!newOrder.crmId) {
-      toast({
-        variant: 'destructive',
-        title: 'Ошибка',
-        description: 'Введите ID заказа из CRM',
-      })
-      return
-    }
-    setIsFetchingCrm(true)
-    try {
-      const deal = await getKeepinCrmDeal(parseInt(newOrder.crmId, 10))
-      setCrmOrderTitle(deal.title)
-      setFunnelId(deal.funnelId)
-      setOrderNumber(deal.orderNumber)
-      toast({
-        title: 'Успешно',
-        description: `Найден заказ: ${deal.title}`,
-      })
-    } catch (error) {
-      console.error('Error fetching CRM deal:', error)
-      toast({
-        variant: 'destructive',
-        title: 'Ошибка',
-        description: 'Не удалось найти заказ в CRM',
-      })
-      setCrmOrderTitle(null)
-      setFunnelId(null)
-    } finally {
-      setIsFetchingCrm(false)
-    }
-  }
-
-  const handleAddOrder = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newOrder.crmId || !newOrder.fabricName || !newOrder.meters) {
-      toast({ variant: 'destructive', title: 'Ошибка', description: 'Заполните все видимые поля' })
-      return
-    }
-    
-    if (funnelId === null || funnelId === undefined) {
-      toast({ 
-        variant: 'destructive', 
-        title: 'Ошибка данных CRM', 
-        description: 'Не удалось получить ID воронки (funnel_id) из CRM. Посмотрите логи сервера.' 
-      })
-      console.error("❌ Validation failed: funnelId is missing", { funnelId, crmOrderTitle })
-      return
-    }
-
-    setSubmitting(true)
-    try {
-      const response = await fetch('/api/fabric-orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderNumber,
-          fabricName: newOrder.fabricName,
-          meters: parseFloat(newOrder.meters),
-          crmId: parseInt(newOrder.crmId, 10),
-          funnelId,
-        }),
-      })
-
-      if (response.ok) {
-        await fetchOrders()
-        setNewOrder({ crmId: '', fabricName: '', meters: '' })
-        setCrmOrderTitle(null)
-        setFunnelId(null)
-        toast({
-          title: 'Успешно',
-          description: 'Заказ добавлен',
-        })
-      } else {
-        const errorText = await response.text();
-        console.error("Failed to create order:", errorText);
-        throw new Error('Failed to create order')
-      }
-    } catch (error) {
-      console.error('Error creating order:', error)
-      toast({
-        variant: 'destructive',
-        title: 'Ошибка',
-        description: 'Не удалось добавить заказ',
-      })
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
-    if (newStatus === 'ORDERED') {
-      const order = orders.find((o) => o.id === orderId)
-      if (order && order.crmId && order.funnelId) {
-        try {
-          await updateKeepinCrmStage(order.crmId, order.funnelId)
-          console.log(`Successfully updated CRM stage for order ${order.orderNumber}`)
-        } catch (error) {
-          console.error(`Failed to update CRM stage for order ${order.orderNumber}:`, error)
-          toast({
-            variant: 'destructive',
-            title: 'Ошибка CRM',
-            description: 'Не удалось обновить стадию в CRM.',
-          })
-        }
-      }
-    }
-
-    try {
-      const response = await fetch(`/api/fabric-orders/${orderId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
-      })
-
-      if (response.ok) {
-        await fetchOrders()
-        toast({
-          title: 'Успешно',
-          description: 'Статус обновлен',
-        })
-      } else {
-        const errorText = await response.text();
-        console.error("Failed to update status:", errorText);
-        throw new Error('Failed to update status')
-      }
-    } catch (error) {
-      console.error('Error updating status:', error)
-      toast({
-        variant: 'destructive',
-        title: 'Ошибка',
-        description: 'Не удалось обновить статус',
-      })
-    }
-  }
-
-  const handleCopy = (order: FabricOrder) => {
-    const text = `${order.fabricName} ${order.meters}м (№${order.orderNumber})`
-    navigator.clipboard.writeText(text)
-    toast({
-      title: 'Скопировано!',
-    })
-  }
-
-  const handleDeleteOrder = async (orderId: string) => {
-    try {
-      const response = await fetch(`/api/fabric-orders/${orderId}`, {
-        method: 'DELETE',
-      })
-
-      if (response.ok) {
-        await fetchOrders()
-        toast({
-          title: 'Успешно',
-          description: 'Заказ удален',
-        })
-      } else {
-        throw new Error('Failed to delete order')
-      }
-    } catch (error) {
-      console.error('Error deleting order:', error)
-      toast({
-        variant: 'destructive',
-        title: 'Ошибка',
-        description: 'Не удалось удалить заказ',
-      })
-    }
-  }
-
-  const handleOpenComment = (order: FabricOrder) => {
-    setEditingComment(order)
-    setCommentText(order.comment || '')
-  }
-
-  const handleSaveComment = async () => {
-    if (!editingComment) return
-
-    try {
-      const response = await fetch(`/api/fabric-orders/${editingComment.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ comment: commentText }),
-      })
-
-      if (response.ok) {
-        await fetchOrders()
-        setEditingComment(null)
-        setCommentText('')
-        toast({
-          title: 'Успешно',
-          description: 'Комментарий сохранен',
-        })
-      } else {
-        const errorText = await response.text();
-        console.error("Failed to save comment:", errorText);
-        throw new Error('Failed to save comment')
-      }
-    } catch (error) {
-      console.error('Error saving comment:', error)
-      toast({
-        variant: 'destructive',
-        title: 'Ошибка',
-        description: 'Не удалось сохранить комментарий',
-      })
-    }
-  }
-
-  const getStatusBadge = (status: OrderStatus) => {
-    const config = {
-      PENDING: { label: 'Нужно заказать', variant: 'destructive' as const },
-      ORDERED: { label: 'Заказано', variant: 'default' as const },
-      ARRIVED: { label: 'На складе', variant: 'default' as const },
-    }
-    const { label, variant } = config[status]
-    
-    return (
-      <Badge 
-        variant={variant}
-        className={
-          status === 'PENDING' 
-            ? 'bg-red-500 hover:bg-red-600' 
-            : status === 'ORDERED' 
-            ? 'bg-yellow-500 hover:bg-yellow-600 text-white' 
-            : 'bg-green-500 hover:bg-green-600'
-        }
-      >
-        {label}
-      </Badge>
-    )
-  }
-
-  const getNextStatus = (currentStatus: OrderStatus): OrderStatus => {
-    switch (currentStatus) {
-      case 'PENDING':
-        return 'ORDERED'
-      case 'ORDERED':
-        return 'ARRIVED'
-      case 'ARRIVED':
-        return 'PENDING'
-      default:
-        return 'PENDING'
-    }
-  }
-
-  const getNextStatusLabel = (status: OrderStatus) => {
-    switch (status) {
-      case 'PENDING':
-        return 'Отметить как заказанное'
-      case 'ORDERED':
-        return 'Отметить как на складе'
-      case 'ARRIVED':
-        return 'Вернуть к нужно заказать'
-      default:
-        return ''
-    }
-  }
-
-  return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 to-slate-100">
-      <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-6">
-          <h1 className="text-4xl font-bold text-slate-800 tracking-tight">
-            HARISMA
-          </h1>
-          <p className="text-slate-600 mt-1">Система отслеживания тканей</p>
-        </div>
-      </header>
-
-      <main className="flex-1 container mx-auto px-4 py-8">
-        <div className="space-y-8">
-          {/* Input Form */}
-          <div className="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
-            <h2 className="text-xl font-semibold text-slate-800 mb-4">
-              Добавить заказ
-            </h2>
-            <form onSubmit={handleAddOrder} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-2 md:col-span-2">
-                <label htmlFor="crmId" className="text-sm font-medium text-slate-700">
-                  ID заказа из CRM
-                </label>
-                <div className="flex gap-2">
-                  <Input
-                    id="crmId"
-                    type="text"
-                    placeholder="725"
-                    value={newOrder.crmId}
-                    onChange={(e) => setNewOrder({ ...newOrder, crmId: e.target.value })}
-                    disabled={submitting || isFetchingCrm}
-                  />
-                  <Button
-                    type="button"
-                    onClick={handleFetchCrmDeal}
-                    disabled={submitting || isFetchingCrm}
-                  >
-                    <Search className="w-4 h-4 mr-2" />
-                    Найти
-                  </Button>
-                </div>
-                {crmOrderTitle && (
-                  <p className="text-sm text-slate-600 mt-1">
-                    Найден: <span className="font-semibold">{crmOrderTitle}</span>
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="fabricName" className="text-sm font-medium text-slate-700">
-                  Название ткани
-                </label>
-                <Input
-                  id="fabricName"
-                  type="text"
-                  placeholder="Vena 6"
-                  value={newOrder.fabricName}
-                  onChange={(e) => setNewOrder({ ...newOrder, fabricName: e.target.value })}
-                  disabled={submitting}
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="meters" className="text-sm font-medium text-slate-700">
-                  Метраж
-                </label>
-                <Input
-                  id="meters"
-                  type="number"
-                  step="0.1"
-                  placeholder="6.5"
-                  value={newOrder.meters}
-                  onChange={(e) => setNewOrder({ ...newOrder, meters: e.target.value })}
-                  disabled={submitting}
-                />
-              </div>
-              <div className="flex items-end md:col-start-4">
-                <Button 
-                  type="submit" 
-                  className="w-full bg-slate-800 hover:bg-slate-900"
-                  disabled={submitting || isFetchingCrm || !crmOrderTitle}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Добавить
-                </Button>
-              </div>
-            </form>
-          </div>
-
-          {/* Orders Table */}
-          <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
-            <div className="p-6 border-b border-slate-200">
-              <h2 className="text-xl font-semibold text-slate-800">
-                Все заказы
-              </h2>
-            </div>
-            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-              <Table>
-                <TableHeader className="sticky top-0 bg-slate-50">
-                  <TableRow>
-                    <TableHead className="font-semibold text-slate-700">Номер заказа</TableHead>
-                    <TableHead className="font-semibold text-slate-700">Название ткани</TableHead>
-                    <TableHead className="font-semibold text-slate-700">Метраж</TableHead>
-                    <TableHead className="font-semibold text-slate-700">Статус</TableHead>
-                    <TableHead className="font-semibold text-slate-700">Комментарий</TableHead>
-                    <TableHead className="font-semibold text-slate-700 text-right">Действия</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-slate-500">
-                        Загрузка...
-                      </TableCell>
-                    </TableRow>
-                  ) : orders.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-slate-500">
-                        Нет заказов
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    orders.map((order) => (
-                      <TableRow 
-                        key={order.id} 
-                        className={order.comment ? 'bg-amber-500/10 hover:bg-amber-500/20' : ''}
-                      >
-                        <TableCell className="font-medium text-slate-800">{order.orderNumber}</TableCell>
-                        <TableCell className="text-slate-700">{order.fabricName}</TableCell>
-                        <TableCell className="text-slate-700">{order.meters} м</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {getStatusBadge(order.status)}
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleStatusChange(order.id, getNextStatus(order.status))}
-                                    className="h-7 text-xs"
-                                  >
-                                    {getNextStatusLabel(order.status)}
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Нажмите, чтобы изменить статус</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-slate-600">
-                          {order.comment ? (
-                            <div className="flex items-center gap-2">
-                              <span className="line-clamp-1 max-w-[200px]">{order.comment}</span>
-                              <span className="text-amber-600 text-xs font-medium">(есть комментарий)</span>
-                            </div>
-                          ) : (
-                            <span className="text-slate-400">Нет</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleCopy(order)}
-                                    className="h-8 w-8 p-0"
-                                  >
-                                    <Copy className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Скопировать</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleOpenComment(order)}
-                                    className="h-8 w-8 p-0"
-                                  >
-                                    <Edit2 className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Редактировать комментарий</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleDeleteOrder(order.id)}
-                                    className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Удалить</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-        </div>
-      </main>
-
-      {/* Comment Modal */}
-      <Dialog open={!!editingComment} onOpenChange={() => setEditingComment(null)}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>
-              Редактировать комментарий
-            </DialogTitle>
-            <DialogDescription>
-              Добавьте или измените комментарий для заказа {editingComment?.orderNumber}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <Textarea
-              placeholder="Введите комментарий..."
-              value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
-              rows={4}
-              className="resize-none"
-            />
-          </div>
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                setEditingComment(null)
-                setCommentText('')
-              }}
-            >
-              Отмена
-            </Button>
-            <Button onClick={handleSaveComment}>
-              Сохранить
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  )
 }
 </file>
 
@@ -8742,6 +8027,769 @@ export default config;
   "exclude": [
     "node_modules"
   ]
+}
+</file>
+
+<file path="next.config.ts">
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  /* config options here */
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  reactStrictMode: false,
+};
+
+export default nextConfig;
+</file>
+
+<file path="public/logo.svg">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30">
+  <rect width="30" height="30" fill="#1e293b"/>
+  <path d="M9 9H12V14H18V9H21V21H18V16H12V21H9V9Z" fill="white"/>
+</svg>
+</file>
+
+<file path="src/app/layout.tsx">
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+import { Toaster } from "@/components/ui/toaster";
+import QueryProvider from "./query-provider";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "HARISMA",
+  description: "Внутренняя система управления заказами тканей для HARISMA",
+  keywords: ["HARISMA", "Next.js", "TypeScript", "Tailwind CSS", "shadcn/ui", "управление заказами", "ткани", "CRM"],
+  authors: [{ name: "HARISMA Team" }],
+  icons: {
+    icon: "/logo.svg",
+  },
+  openGraph: {
+    title: "HARISMA",
+    description: "Внутренняя система управления заказами тканей для HARISMA",
+    url: "https://harisma.app", // Assuming a hypothetical URL for openGraph
+    siteName: "HARISMA",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "HARISMA",
+    description: "Внутренняя система управления заказами тканей для HARISMA",
+  },
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
+      >
+        <QueryProvider>
+          {children}
+        </QueryProvider>
+        <Toaster />
+      </body>
+    </html>
+  );
+}
+</file>
+
+<file path="src/app/page.tsx">
+'use client'
+
+import { useEffect, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/textarea'
+import { Badge } from '@/components/ui/badge'
+import { useToast } from '@/hooks/use-toast'
+import { Copy, Edit2, Trash2, Plus, Search, MoreHorizontal, MessageSquare } from 'lucide-react'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import { getKeepinCrmDeal, updateKeepinCrmStage } from '@/app/actions'
+
+type OrderStatus = 'PENDING' | 'ORDERED' | 'ARRIVED'
+
+interface FabricOrder {
+  id: string
+  orderNumber: string
+  fabricName: string
+  meters: number
+  status: OrderStatus
+  comment: string | null
+  crmId: number | null
+  funnelId: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+interface NewOrder {
+  crmId: string
+  fabricName: string
+  meters: string
+}
+
+export default function Home() {
+  const [orders, setOrders] = useState<FabricOrder[]>([])
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [newOrder, setNewOrder] = useState<NewOrder>({
+    crmId: '',
+    fabricName: '',
+    meters: '',
+  })
+  const [editingComment, setEditingComment] = useState<FabricOrder | null>(null)
+  const [commentText, setCommentText] = useState('')
+  const { toast } = useToast()
+  const [crmOrderTitle, setCrmOrderTitle] = useState<string | null>(null)
+  const [funnelId, setFunnelId] = useState<number | null>(null)
+  const [isFetchingCrm, setIsFetchingCrm] = useState(false)
+  const [orderNumber, setOrderNumber] = useState('');
+  const [searchQuery, setSearchQuery] = useState('')
+
+  useEffect(() => {
+    fetchOrders()
+  }, [])
+
+  const fetchOrders = async () => {
+    try {
+      const response = await fetch('/api/fabric-orders')
+      const data = await response.json()
+      setOrders(data)
+    } catch (error) {
+      console.error('Error fetching orders:', error)
+      toast({
+        variant: 'destructive',
+        title: 'Ошибка',
+        description: 'Не удалось загрузить заказы',
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleFetchCrmDeal = async () => {
+    if (!newOrder.crmId) {
+      toast({
+        variant: 'destructive',
+        title: 'Ошибка',
+        description: 'Введите ID заказа из CRM',
+      })
+      return
+    }
+    setIsFetchingCrm(true)
+    try {
+      const deal = await getKeepinCrmDeal(parseInt(newOrder.crmId, 10))
+      setCrmOrderTitle(deal.title)
+      setFunnelId(deal.funnelId)
+      setOrderNumber(deal.orderNumber)
+      toast({
+        title: 'Успешно',
+        description: `Найден заказ: ${deal.title}`,
+      })
+    } catch (error) {
+      console.error('Error fetching CRM deal:', error)
+      toast({
+        variant: 'destructive',
+        title: 'Ошибка',
+        description: 'Не удалось найти заказ в CRM',
+      })
+      setCrmOrderTitle(null)
+      setFunnelId(null)
+    } finally {
+      setIsFetchingCrm(false)
+    }
+  }
+
+  const handleAddOrder = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newOrder.crmId || !newOrder.fabricName || !newOrder.meters) {
+      toast({ variant: 'destructive', title: 'Ошибка', description: 'Заполните все видимые поля' })
+      return
+    }
+    
+    if (funnelId === null || funnelId === undefined) {
+      toast({ 
+        variant: 'destructive', 
+        title: 'Ошибка данных CRM', 
+        description: 'Не удалось получить ID воронки (funnel_id) из CRM. Посмотрите логи сервера.' 
+      })
+      console.error("❌ Validation failed: funnelId is missing", { funnelId, crmOrderTitle })
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const response = await fetch('/api/fabric-orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderNumber,
+          fabricName: newOrder.fabricName,
+          meters: parseFloat(newOrder.meters),
+          crmId: parseInt(newOrder.crmId, 10),
+          funnelId,
+        }),
+      })
+
+      if (response.ok) {
+        await fetchOrders()
+        setNewOrder({ crmId: '', fabricName: '', meters: '' })
+        setCrmOrderTitle(null)
+        setFunnelId(null)
+        toast({
+          title: 'Успешно',
+          description: 'Заказ добавлен',
+        })
+      } else {
+        const errorText = await response.text();
+        console.error("Failed to create order:", errorText);
+        throw new Error('Failed to create order')
+      }
+    } catch (error) {
+      console.error('Error creating order:', error)
+      toast({
+        variant: 'destructive',
+        title: 'Ошибка',
+        description: 'Не удалось добавить заказ',
+      })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
+    if (newStatus === 'ORDERED') {
+      const order = orders.find((o) => o.id === orderId)
+      if (order && order.crmId && order.funnelId) {
+        try {
+          await updateKeepinCrmStage(order.crmId, order.funnelId)
+          console.log(`Successfully updated CRM stage for order ${order.orderNumber}`)
+        } catch (error) {
+          console.error(`Failed to update CRM stage for order ${order.orderNumber}:`, error)
+          toast({
+            variant: 'destructive',
+            title: 'Ошибка CRM',
+            description: 'Не удалось обновить стадию в CRM.',
+          })
+        }
+      }
+    }
+
+    try {
+      const response = await fetch(`/api/fabric-orders/${orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+
+      if (response.ok) {
+        await fetchOrders()
+        toast({
+          title: 'Успешно',
+          description: 'Статус обновлен',
+        })
+      } else {
+        const errorText = await response.text();
+        console.error("Failed to update status:", errorText);
+        throw new Error('Failed to update status')
+      }
+    } catch (error) {
+      console.error('Error updating status:', error)
+      toast({
+        variant: 'destructive',
+        title: 'Ошибка',
+        description: 'Не удалось обновить статус',
+      })
+    }
+  }
+
+  const handleCopy = (order: FabricOrder) => {
+    const text = `${order.fabricName} ${order.meters}м (№${order.orderNumber})`
+    navigator.clipboard.writeText(text)
+    toast({
+      title: 'Скопировано!',
+    })
+  }
+
+  const handleDeleteOrder = async (orderId: string) => {
+    try {
+      const response = await fetch(`/api/fabric-orders/${orderId}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        await fetchOrders()
+        toast({
+          title: 'Успешно',
+          description: 'Заказ удален',
+        })
+      } else {
+        throw new Error('Failed to delete order')
+      }
+    } catch (error) {
+      console.error('Error deleting order:', error)
+      toast({
+        variant: 'destructive',
+        title: 'Ошибка',
+        description: 'Не удалось удалить заказ',
+      })
+    }
+  }
+
+  const handleOpenComment = (order: FabricOrder) => {
+    setEditingComment(order)
+    setCommentText(order.comment || '')
+  }
+
+  const handleSaveComment = async () => {
+    if (!editingComment) return
+
+    try {
+      const response = await fetch(`/api/fabric-orders/${editingComment.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comment: commentText }),
+      })
+
+      if (response.ok) {
+        await fetchOrders()
+        setEditingComment(null)
+        setCommentText('')
+        toast({
+          title: 'Успешно',
+          description: 'Комментарий сохранен',
+        })
+      } else {
+        const errorText = await response.text();
+        console.error("Failed to save comment:", errorText);
+        throw new Error('Failed to save comment')
+      }
+    } catch (error) {
+      console.error('Error saving comment:', error)
+      toast({
+        variant: 'destructive',
+        title: 'Ошибка',
+        description: 'Не удалось сохранить комментарий',
+      })
+    }
+  }
+
+  const getStatusBadge = (status: OrderStatus) => {
+    const config = {
+      PENDING: { label: 'Нужно заказать', variant: 'destructive' as const },
+      ORDERED: { label: 'Заказано', variant: 'default' as const },
+      ARRIVED: { label: 'На складе', variant: 'default' as const },
+    }
+    const { label, variant } = config[status]
+    
+    return (
+      <Badge 
+        variant={variant}
+        className={
+          status === 'PENDING' 
+            ? 'bg-red-500 hover:bg-red-600' 
+            : status === 'ORDERED' 
+            ? 'bg-yellow-500 hover:bg-yellow-600 text-white' 
+            : 'bg-green-500 hover:bg-green-600'
+        }
+      >
+        {label}
+      </Badge>
+    )
+  }
+
+  const getNextStatus = (currentStatus: OrderStatus): OrderStatus => {
+    switch (currentStatus) {
+      case 'PENDING':
+        return 'ORDERED'
+      case 'ORDERED':
+        return 'ARRIVED'
+      case 'ARRIVED':
+        return 'PENDING'
+      default:
+        return 'PENDING'
+    }
+  }
+
+  const getNextStatusLabel = (status: OrderStatus) => {
+    switch (status) {
+      case 'PENDING':
+        return 'Отметить как заказанное'
+      case 'ORDERED':
+        return 'Отметить как на складе'
+      case 'ARRIVED':
+        return 'Вернуть к нужно заказать'
+      default:
+        return ''
+    }
+  }
+
+  const filteredOrders = orders.filter(
+    (order) =>
+      order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      order.fabricName.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  return (
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 to-slate-100">
+      <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-20">
+        <div className="container mx-auto px-4 py-2 flex items-baseline gap-x-2">
+          <h1 className="text-lg font-bold text-slate-800 tracking-tight">
+            HARISMA
+          </h1>
+          <p className="text-xs text-slate-500">Система отслеживания тканей</p>
+        </div>
+      </header>
+
+      <main className="flex-1 container mx-auto px-4 py-4 flex flex-col">
+        <div className="space-y-3 flex flex-col flex-grow">
+          {/* Input Form */}
+          <div className="bg-white rounded-xl shadow-lg p-3 border border-slate-200">
+            <form onSubmit={handleAddOrder} className="flex flex-col md:flex-row md:items-end gap-2">
+              <div className="flex-grow space-y-2 md:space-y-0 md:flex md:gap-2">
+                <div className="flex-grow min-w-[150px] space-y-1">
+                  <div className="flex gap-2">
+                    <Input
+                      id="crmId"
+                      type="text"
+                      placeholder="ID из CRM"
+                      value={newOrder.crmId}
+                      onChange={(e) => setNewOrder({ ...newOrder, crmId: e.target.value })}
+                      disabled={submitting || isFetchingCrm}
+                      className="h-9 w-full"
+                    />
+                    <Button
+                      type="button"
+                      onClick={handleFetchCrmDeal}
+                      disabled={submitting || isFetchingCrm}
+                      className="h-9"
+                    >
+                      <Search className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  {crmOrderTitle && (
+                    <p className="text-xs text-slate-600 mt-1">
+                      Найден: <span className="font-semibold">{crmOrderTitle}</span>
+                    </p>
+                  )}
+                </div>
+                <div className="flex-grow min-w-[150px]">
+                  <Input
+                    id="fabricName"
+                    type="text"
+                    placeholder="Название ткани"
+                    value={newOrder.fabricName}
+                    onChange={(e) => setNewOrder({ ...newOrder, fabricName: e.target.value })}
+                    disabled={submitting}
+                    className="h-9 w-full"
+                  />
+                </div>
+                <div className="flex-grow min-w-[100px] md:max-w-[120px]">
+                  <Input
+                    id="meters"
+                    type="number"
+                    step="0.1"
+                    placeholder="Метраж"
+                    value={newOrder.meters}
+                    onChange={(e) => setNewOrder({ ...newOrder, meters: e.target.value })}
+                    disabled={submitting}
+                    className="h-9 w-full"
+                  />
+                </div>
+              </div>
+              <Button
+                type="submit"
+                className="h-9 w-full md:w-auto bg-slate-800 hover:bg-slate-900"
+                disabled={submitting || isFetchingCrm || !crmOrderTitle}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Добавить
+              </Button>
+            </form>
+          </div>
+
+          {/* Orders Display */}
+          <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden flex-grow flex flex-col">
+            <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:justify-between md:items-center gap-3">
+              <h2 className="text-lg font-semibold text-slate-800">
+                Все заказы
+              </h2>
+              <div className="relative w-full md:w-auto">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input
+                  type="text"
+                  placeholder="Поиск по номеру или ткани..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 h-9 w-full md:max-w-xs"
+                />
+              </div>
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="overflow-y-auto hidden md:block flex-grow">
+              <Table>
+                <TableHeader className="sticky top-0 bg-slate-50 z-10">
+                  <TableRow>
+                    <TableHead className="font-semibold text-slate-700">Номер заказа</TableHead>
+                    <TableHead className="font-semibold text-slate-700">Название ткани</TableHead>
+                    <TableHead className="font-semibold text-slate-700">Метраж</TableHead>
+                    <TableHead className="font-semibold text-slate-700">Статус</TableHead>
+                    <TableHead className="font-semibold text-slate-700">Комментарий</TableHead>
+                    <TableHead className="font-semibold text-slate-700 text-right">Действия</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8 text-slate-500">
+                        Загрузка...
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredOrders.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8 text-slate-500">
+                        {orders.length === 0 ? 'Нет заказов' : 'Ничего не найдено'}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredOrders.map((order) => (
+                      <TableRow
+                        key={order.id}
+                        className={order.comment ? 'bg-amber-500/10 hover:bg-amber-500/20' : ''}
+                      >
+                        <TableCell className="font-medium text-slate-800">{order.orderNumber}</TableCell>
+                        <TableCell className="text-slate-700">{order.fabricName}</TableCell>
+                        <TableCell className="text-slate-700">{order.meters} м</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {getStatusBadge(order.status)}
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleStatusChange(order.id, getNextStatus(order.status))}
+                                    className="h-7 text-xs"
+                                  >
+                                    {getNextStatusLabel(order.status)}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Нажмите, чтобы изменить статус</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-slate-600">
+                          {order.comment ? (
+                            <div className="flex items-center gap-2">
+                              <span className="line-clamp-1 max-w-[200px]">{order.comment}</span>
+                              <span className="text-amber-600 text-xs font-medium">(есть комментарий)</span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400">Нет</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button size="sm" variant="ghost" onClick={() => handleCopy(order)} className="h-8 w-8 p-0">
+                                    <Copy className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Скопировать</p></TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button size="sm" variant="ghost" onClick={() => handleOpenComment(order)} className="h-8 w-8 p-0">
+                                    <Edit2 className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Редактировать комментарий</p></TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button size="sm" variant="ghost" onClick={() => handleDeleteOrder(order.id)} className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50">
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Удалить</p></TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Mobile List View */}
+            <div className="block md:hidden">
+              {loading ? (
+                <p className="text-center py-8 text-slate-500">Загрузка...</p>
+              ) : filteredOrders.length === 0 ? (
+                <p className="text-center py-8 text-slate-500">
+                  {orders.length === 0 ? 'Нет заказов' : 'Ничего не найдено'}
+                </p>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {filteredOrders.map((order) => (
+                    <div
+                      key={order.id}
+                      className={`p-4 flex items-center justify-between gap-3 ${order.comment ? 'bg-amber-50/50' : ''}`}
+                    >
+                      <div className="flex-grow space-y-1">
+                        <div className="flex items-center gap-2">
+                           <p className="font-bold text-slate-800">#{order.orderNumber}</p>
+                           {order.comment && <MessageSquare className="w-4 h-4 text-amber-600" />}
+                        </div>
+                        <p className="text-sm text-slate-600">{order.fabricName}</p>
+                         <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleStatusChange(order.id, getNextStatus(order.status))}
+                            className="h-auto p-0 text-xs"
+                          >
+                            {getNextStatusLabel(order.status)}
+                          </Button>
+                      </div>
+
+                      <div className="flex-shrink-0 flex flex-col items-end gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-slate-700 text-sm">{order.meters} м</span>
+                          {getStatusBadge(order.status)}
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Открыть меню</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleCopy(order)}>
+                              <Copy className="mr-2 h-4 w-4" />
+                              <span>Скопировать</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleOpenComment(order)}>
+                              <Edit2 className="mr-2 h-4 w-4" />
+                              <span>Комментарий</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDeleteOrder(order.id)} className="text-red-600">
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              <span>Удалить</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {/* Comment Modal */}
+      <Dialog open={!!editingComment} onOpenChange={() => setEditingComment(null)}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>
+              Редактировать комментарий
+            </DialogTitle>
+            <DialogDescription>
+              Добавьте или измените комментарий для заказа {editingComment?.orderNumber}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Textarea
+              placeholder="Введите комментарий..."
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+              rows={4}
+              className="resize-none"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditingComment(null)
+                setCommentText('')
+              }}
+            >
+              Отмена
+            </Button>
+            <Button onClick={handleSaveComment}>
+              Сохранить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
 }
 </file>
 
