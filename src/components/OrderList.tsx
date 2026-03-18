@@ -284,88 +284,168 @@ export function OrderList({ status }: OrderListProps) {
           <p className="text-slate-500">Ничего не найдено</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-          <AnimatePresence mode="popLayout">
-            {filteredOrders.map((order) => (
-              <motion.div
-                layout
-                key={order.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.2 }}
-                className="bg-white rounded-xl border border-slate-200 shadow-sm p-2 flex flex-col gap-1 hover:border-slate-300 transition-colors"
-              >
-                {/* Шапка карточки */}
-                <div className="flex items-center justify-between gap-1">
-                  <div className="flex items-center gap-1.5 overflow-hidden">
-                    <span className="font-black text-base text-slate-900 leading-none shrink-0">
-                      #{order.orderNumber}
-                    </span>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button size="sm" variant="ghost" onClick={() => handleCopy(order)} className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600 shrink-0">
-                            <Copy className="h-3 w-3" />
+        <>
+          {/* Desktop Table View */}
+          <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden hidden md:block">
+            <Table>
+              <TableHeader className="bg-slate-50">
+                <TableRow>
+                  <TableHead>№ Заказа</TableHead>
+                  <TableHead>Ткань</TableHead>
+                  <TableHead>Метраж</TableHead>
+                  <TableHead>Статус</TableHead>
+                  <TableHead>Комментарий</TableHead>
+                  <TableHead className="text-right">Действия</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <AnimatePresence mode="popLayout">
+                  {filteredOrders.map((order) => (
+                    <motion.tr
+                      layout
+                      key={order.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.2 }}
+                      className={cn("hover:bg-slate-50 transition-colors border-b", order.comment && "bg-amber-500/5")}
+                    >
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <span 
+                            className="cursor-pointer hover:underline" 
+                            onClick={() => (order.status === 'ARRIVED' || order.status === 'ARCHIVED') && setTimelineOrder(order)}
+                          >
+                            {order.orderNumber}
+                          </span>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button size="sm" variant="ghost" onClick={() => handleCopy(order)} className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600">
+                                  <Copy className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent><p>Скопировать заказ</p></TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                      </TableCell>
+                      <TableCell>{order.fabricName}</TableCell>
+                      <TableCell>{order.meters} м</TableCell>
+                      <TableCell>{getStatusBadge(order.status)}</TableCell>
+                      <TableCell>
+                        {order.comment ? (
+                           <div className="flex items-center gap-2">
+                             <span className="line-clamp-1 max-w-[150px]">{order.comment}</span>
+                             <span className="text-amber-600 text-xs font-medium">(есть)</span>
+                           </div>
+                        ) : <span className="text-slate-400">Нет</span>}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-end gap-2">
+                          {renderActions(order)}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => { setEditingComment(order); setCommentText(order.comment || '') }}><Edit2 className="mr-2 h-4 w-4" />Комментарий</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => deleteMutation.mutate(order.id)} className="text-red-600"><Trash2 className="mr-2 h-4 w-4" />Удалить</DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </TableCell>
+                    </motion.tr>
+                  ))}
+                </AnimatePresence>
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="grid grid-cols-1 gap-2 md:hidden">
+            <AnimatePresence mode="popLayout">
+              {filteredOrders.map((order) => (
+                <motion.div
+                  layout
+                  key={order.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.2 }}
+                  className="bg-white rounded-xl border border-slate-200 shadow-sm p-2 flex flex-col gap-1 hover:border-slate-300 transition-colors"
+                >
+                  {/* Шапка карточки */}
+                  <div className="flex items-center justify-between gap-1">
+                    <div className="flex items-center gap-1.5 overflow-hidden">
+                      <span className="font-black text-base text-slate-900 leading-none shrink-0">
+                        #{order.orderNumber}
+                      </span>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button size="sm" variant="ghost" onClick={() => handleCopy(order)} className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600 shrink-0">
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent><p>Скопировать заказ</p></TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <div className="shrink-0 scale-90 origin-left">
+                        {getStatusBadge(order.status)}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      {renderActions(order)}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-6 w-6 p-0">
+                            <MoreHorizontal className="h-3.5 w-3.5" />
                           </Button>
-                        </TooltipTrigger>
-                        <TooltipContent><p>Скопировать заказ</p></TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    <div className="shrink-0 scale-90 origin-left">
-                      {getStatusBadge(order.status)}
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => { setEditingComment(order); setCommentText(order.comment || '') }}>
+                            <Edit2 className="mr-2 h-4 w-4" />Комментарий
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => deleteMutation.mutate(order.id)} className="text-red-600">
+                            <Trash2 className="mr-2 h-4 w-4" />Удалить
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-0.5 shrink-0">
-                    {renderActions(order)}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-6 w-6 p-0">
-                          <MoreHorizontal className="h-3.5 w-3.5" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => { setEditingComment(order); setCommentText(order.comment || '') }}>
-                          <Edit2 className="mr-2 h-4 w-4" />Комментарий
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => deleteMutation.mutate(order.id)} className="text-red-600">
-                          <Trash2 className="mr-2 h-4 w-4" />Удалить
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-
-                {/* Основная информация: Ткань и Метраж */}
-                <div 
-                  className={cn(
-                    "transition-colors group px-1 py-0.5 rounded-md",
-                    (order.status === 'ARRIVED' || order.status === 'ARCHIVED') && "cursor-pointer hover:bg-slate-50"
-                  )}
-                  onClick={() => (order.status === 'ARRIVED' || order.status === 'ARCHIVED') && setTimelineOrder(order)}
-                >
-                  <h3 className="text-[15px] font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1 leading-tight">
-                    {order.fabricName}
-                  </h3>
-                  <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
-                    {order.meters} м
-                  </p>
-                </div>
-
-                {/* Комментарий */}
-                {order.comment && (
-                  <div className="bg-amber-50 border border-amber-100 rounded-md p-1.5 flex gap-1.5 items-start mt-0.5">
-                    <MessageSquare className="w-3 h-3 text-amber-600 mt-0.5 shrink-0" />
-                    <p className="text-[11px] text-amber-900 leading-tight whitespace-pre-wrap line-clamp-2 italic">
-                      {order.comment}
+                  {/* Основная информация: Ткань и Метраж */}
+                  <div 
+                    className={cn(
+                      "transition-colors group px-1 py-0.5 rounded-md",
+                      (order.status === 'ARRIVED' || order.status === 'ARCHIVED') && "cursor-pointer hover:bg-slate-50"
+                    )}
+                    onClick={() => (order.status === 'ARRIVED' || order.status === 'ARCHIVED') && setTimelineOrder(order)}
+                  >
+                    <h3 className="text-[15px] font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1 leading-tight">
+                      {order.fabricName}
+                    </h3>
+                    <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
+                      {order.meters} м
                     </p>
                   </div>
-                )}
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
+
+                  {/* Комментарий */}
+                  {order.comment && (
+                    <div className="bg-amber-50 border border-amber-100 rounded-md p-1.5 flex gap-1.5 items-start mt-0.5">
+                      <MessageSquare className="w-3 h-3 text-amber-600 mt-0.5 shrink-0" />
+                      <p className="text-[11px] text-amber-900 leading-tight whitespace-pre-wrap line-clamp-2 italic">
+                        {order.comment}
+                      </p>
+                    </div>
+                  )}
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        </>
       )}
 
       <Dialog open={!!editingComment} onOpenChange={() => setEditingComment(null)}>
