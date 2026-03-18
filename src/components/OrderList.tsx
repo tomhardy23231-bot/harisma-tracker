@@ -284,7 +284,7 @@ export function OrderList({ status }: OrderListProps) {
           <p className="text-slate-500">Ничего не найдено</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           <AnimatePresence mode="popLayout">
             {filteredOrders.map((order) => (
               <motion.div
@@ -294,19 +294,19 @@ export function OrderList({ status }: OrderListProps) {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ duration: 0.2 }}
-                className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col gap-4 hover:border-slate-300 transition-colors"
+                className="bg-white rounded-xl border border-slate-200 shadow-sm p-3 flex flex-col gap-2 hover:border-slate-300 transition-colors"
               >
                 {/* Шапка карточки */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline" className="font-mono text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Badge variant="outline" className="font-mono text-[10px] px-1.5 h-5">
                       #{order.orderNumber}
                     </Badge>
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Button size="sm" variant="ghost" onClick={() => handleCopy(order)} className="h-8 w-8 p-0 text-slate-400 hover:text-slate-600">
-                            <Copy className="h-4 w-4" />
+                          <Button size="sm" variant="ghost" onClick={() => handleCopy(order)} className="h-7 w-7 p-0 text-slate-400 hover:text-slate-600">
+                            <Copy className="h-3.5 w-3.5" />
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent><p>Скопировать заказ</p></TooltipContent>
@@ -315,11 +315,11 @@ export function OrderList({ status }: OrderListProps) {
                     {getStatusBadge(order.status)}
                   </div>
 
-                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                  <div className="flex items-center gap-1 shrink-0">
                     {renderActions(order)}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
+                        <Button variant="ghost" className="h-7 w-7 p-0">
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -338,24 +338,24 @@ export function OrderList({ status }: OrderListProps) {
                 {/* Основная информация: Ткань и Метраж */}
                 <div 
                   className={cn(
-                    "space-y-1 transition-colors group p-2 -m-2 rounded-lg",
+                    "transition-colors group px-2 py-1 -mx-2 rounded-md",
                     (order.status === 'ARRIVED' || order.status === 'ARCHIVED') && "cursor-pointer hover:bg-slate-50"
                   )}
                   onClick={() => (order.status === 'ARRIVED' || order.status === 'ARCHIVED') && setTimelineOrder(order)}
                 >
-                  <h3 className="text-lg font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                  <h3 className="text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1">
                     {order.fabricName}
                   </h3>
-                  <p className="text-sm text-slate-500 font-medium">
+                  <p className="text-xs text-slate-500 font-medium">
                     {order.meters} м
                   </p>
                 </div>
 
                 {/* Комментарий */}
                 {order.comment && (
-                  <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 flex gap-3 items-start mt-auto">
-                    <MessageSquare className="w-4 h-4 text-amber-600 mt-1 shrink-0" />
-                    <p className="text-sm text-amber-900 leading-relaxed whitespace-pre-wrap">
+                  <div className="bg-amber-50 border border-amber-100 rounded-lg p-2 flex gap-2 items-start mt-1">
+                    <MessageSquare className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" />
+                    <p className="text-xs text-amber-900 leading-tight whitespace-pre-wrap line-clamp-3">
                       {order.comment}
                     </p>
                   </div>
