@@ -51,3 +51,4 @@ server.log
 /skills/
 *.db
 *.db-journal
+repomix-output.xml
