@@ -323,18 +323,7 @@ export function OrderList({ status }: OrderListProps) {
               >
               <TableCell className="font-medium">
                 <div className="flex items-center gap-2">
-                  <span 
-                    className="hover:underline" 
-                    onClick={(e) => {
-                      if (order.status === 'ARRIVED' || order.status === 'ARCHIVED') {
-                        e.stopPropagation();
-                        setTimelineOrder(order);
-                      }
-                    }}
-                  >
-                    {order.orderNumber}
-                  </span>
-                  <TooltipProvider>
+                  <span className="font-semibold">{order.orderNumber}</span>                  <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleCopy(order) }} className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600">
@@ -434,19 +423,7 @@ export function OrderList({ status }: OrderListProps) {
               </div>
 
               {/* Основная информация: Ткань и Метраж */}
-              <div 
-              className={cn(
-              "transition-colors group px-1 py-0.5 rounded-md",
-              (order.status === 'ARRIVED' || order.status === 'ARCHIVED') && "hover:bg-slate-50"
-              )}
-              onClick={(e) => {
-              if (order.status === 'ARRIVED' || order.status === 'ARCHIVED') {
-                e.stopPropagation();
-                setTimelineOrder(order);
-              }
-              }}
-              >
-              <h3 className="text-[15px] font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1 leading-tight">
+              <div className="transition-colors group px-1 py-0.5 rounded-md">              <h3 className="text-[15px] font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1 leading-tight">
               {order.fabricName}
               </h3>
               <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
