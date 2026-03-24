@@ -22,6 +22,7 @@ export default function PendingOrdersPage() {
     meters: '',
   })
   const [crmOrderTitle, setCrmOrderTitle] = useState<string | null>(null)
+  const [crmComment, setCrmComment] = useState<string | null>(null)
   const [funnelId, setFunnelId] = useState<number | null>(null)
   const [isFetchingCrm, setIsFetchingCrm] = useState(false)
   const [orderNumber, setOrderNumber] = useState('')
@@ -36,6 +37,7 @@ export default function PendingOrdersPage() {
     try {
       const deal = await getKeepinCrmDeal(parseInt(newOrder.crmId, 10))
       setCrmOrderTitle(deal.title)
+      setCrmComment(deal.crmComment)
       setFunnelId(deal.funnelId)
       setOrderNumber(deal.orderNumber)
       toast.success(`🔍 Найден заказ: ${deal.title}`)
@@ -43,6 +45,7 @@ export default function PendingOrdersPage() {
       console.error('Error fetching CRM deal:', error)
       toast.error('Не удалось найти заказ в CRM')
       setCrmOrderTitle(null)
+      setCrmComment(null)
       setFunnelId(null)
     } finally {
       setIsFetchingCrm(false)
@@ -67,6 +70,8 @@ export default function PendingOrdersPage() {
           fabricName: newOrder.fabricName,
           meters: parseFloat(newOrder.meters),
           crmId: parseInt(newOrder.crmId, 10),
+          crmTitle: crmOrderTitle,
+          crmComment: crmComment,
           funnelId,
         }),
       })
@@ -78,6 +83,7 @@ export default function PendingOrdersPage() {
       queryClient.invalidateQueries({ queryKey: ['fabric-orders'] })
       setNewOrder({ crmId: '', fabricName: '', meters: '' })
       setCrmOrderTitle(null)
+      setCrmComment(null)
       setFunnelId(null)
       toast.success(`✨ Заказ #${data.orderNumber} (${data.fabricName}) успешно добавлен`)
     },

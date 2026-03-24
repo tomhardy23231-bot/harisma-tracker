@@ -47,6 +47,8 @@ model FabricOrder {
   status      OrderStatus @default(PENDING)
   comment     String?
   crmId       Int?
+  crmTitle    String?
+  crmComment  String?
   funnelId    Int?
   orderedAt   DateTime?
   arrivedAt   DateTime?

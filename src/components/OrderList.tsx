@@ -34,11 +34,12 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from '@/components/ui/tooltip'
-import { updateKeepinCrmStage } from '@/app/actions'
+import { updateKeepinCrmStage, getKeepinCrmDeal } from '@/app/actions'
 import { OrderTimelineModal } from './OrderTimelineModal'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export type OrderStatus = 'PENDING' | 'ORDERED' | 'ARRIVED' | 'ARCHIVED'
 
@@ -50,6 +51,8 @@ export interface FabricOrder {
   status: OrderStatus
   comment: string | null
   crmId: number | null
+  crmTitle: string | null
+  crmComment: string | null
   funnelId: number | null
   orderedAt: string | null
   arrivedAt: string | null
@@ -67,6 +70,7 @@ export function OrderList({ status }: OrderListProps) {
   const [editingComment, setEditingComment] = useState<FabricOrder | null>(null)
   const [commentText, setCommentText] = useState('')
   const [timelineOrder, setTimelineOrder] = useState<FabricOrder | null>(null)
+  const [crmInfoOrder, setCrmInfoOrder] = useState<FabricOrder | null>(null)
   const queryClient = useQueryClient()
 
   const { data: orders = [], isLoading } = useQuery<FabricOrder[]>({
@@ -77,6 +81,12 @@ export function OrderList({ status }: OrderListProps) {
       return response.json()
     }
   })
+
+  const { data: fetchedCrmData, isLoading: isFetchingCrm } = useQuery({
+    queryKey: ['crm-deal', crmInfoOrder?.crmId],
+    queryFn: () => getKeepinCrmDeal(crmInfoOrder!.crmId!),
+    enabled: !!crmInfoOrder && !crmInfoOrder.crmComment && !!crmInfoOrder.crmId,
+  });
 
   const statusMutation = useMutation({
     mutationFn: async ({ orderId, newStatus }: { orderId: string, newStatus: OrderStatus }) => {
@@ -299,157 +309,221 @@ export function OrderList({ status }: OrderListProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <AnimatePresence mode="popLayout">
-                  {filteredOrders.map((order) => (
-                    <motion.tr
-                      layout
-                      key={order.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ duration: 0.2 }}
-                      className={cn("hover:bg-slate-50 transition-colors border-b", order.comment && "bg-amber-500/5")}
-                    >
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          <span 
-                            className="cursor-pointer hover:underline" 
-                            onClick={() => (order.status === 'ARRIVED' || order.status === 'ARCHIVED') && setTimelineOrder(order)}
-                          >
-                            {order.orderNumber}
-                          </span>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button size="sm" variant="ghost" onClick={() => handleCopy(order)} className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600">
-                                  <Copy className="h-3.5 w-3.5" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent><p>Скопировать заказ</p></TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </div>
-                      </TableCell>
-                      <TableCell>{order.fabricName}</TableCell>
-                      <TableCell>{order.meters} м</TableCell>
-                      <TableCell>{getStatusBadge(order.status)}</TableCell>
-                      <TableCell>
-                        {order.comment ? (
-                           <div className="flex items-center gap-2">
-                             <span className="line-clamp-1 max-w-[150px]">{order.comment}</span>
-                             <span className="text-amber-600 text-xs font-medium">(есть)</span>
-                           </div>
-                        ) : <span className="text-slate-400">Нет</span>}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center justify-end gap-2">
-                          {renderActions(order)}
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => { setEditingComment(order); setCommentText(order.comment || '') }}><Edit2 className="mr-2 h-4 w-4" />Комментарий</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => deleteMutation.mutate(order.id)} className="text-red-600"><Trash2 className="mr-2 h-4 w-4" />Удалить</DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </TableCell>
-                    </motion.tr>
-                  ))}
-                </AnimatePresence>
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Mobile Card View */}
-          <div className="grid grid-cols-1 gap-2 md:hidden">
-            <AnimatePresence mode="popLayout">
+              <AnimatePresence mode="popLayout">
               {filteredOrders.map((order) => (
-                <motion.div
-                  layout
-                  key={order.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.2 }}
-                  className="bg-white rounded-xl border border-slate-200 shadow-sm p-2 flex flex-col gap-1 hover:border-slate-300 transition-colors"
-                >
-                  {/* Шапка карточки */}
-                  <div className="flex items-center justify-between gap-1">
-                    <div className="flex items-center gap-1.5 overflow-hidden">
-                      <span className="font-black text-base text-slate-900 leading-none shrink-0">
-                        #{order.orderNumber}
-                      </span>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button size="sm" variant="ghost" onClick={() => handleCopy(order)} className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600 shrink-0">
-                              <Copy className="h-3 w-3" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent><p>Скопировать заказ</p></TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      <div className="shrink-0 scale-90 origin-left">
-                        {getStatusBadge(order.status)}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-0.5 shrink-0">
-                      {renderActions(order)}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-6 w-6 p-0">
-                            <MoreHorizontal className="h-3.5 w-3.5" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => { setEditingComment(order); setCommentText(order.comment || '') }}>
-                            <Edit2 className="mr-2 h-4 w-4" />Комментарий
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => deleteMutation.mutate(order.id)} className="text-red-600">
-                            <Trash2 className="mr-2 h-4 w-4" />Удалить
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-
-                  {/* Основная информация: Ткань и Метраж */}
-                  <div 
-                    className={cn(
-                      "transition-colors group px-1 py-0.5 rounded-md",
-                      (order.status === 'ARRIVED' || order.status === 'ARCHIVED') && "cursor-pointer hover:bg-slate-50"
-                    )}
-                    onClick={() => (order.status === 'ARRIVED' || order.status === 'ARCHIVED') && setTimelineOrder(order)}
+              <motion.tr
+              layout
+              key={order.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className={cn("hover:bg-slate-50 transition-colors border-b cursor-pointer", order.comment && "bg-amber-500/5")}
+              onClick={() => setCrmInfoOrder(order)}
+              >
+              <TableCell className="font-medium">
+                <div className="flex items-center gap-2">
+                  <span 
+                    className="hover:underline" 
+                    onClick={(e) => {
+                      if (order.status === 'ARRIVED' || order.status === 'ARCHIVED') {
+                        e.stopPropagation();
+                        setTimelineOrder(order);
+                      }
+                    }}
                   >
-                    <h3 className="text-[15px] font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1 leading-tight">
-                      {order.fabricName}
-                    </h3>
-                    <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
-                      {order.meters} м
-                    </p>
-                  </div>
-
-                  {/* Комментарий */}
-                  {order.comment && (
-                    <div className="bg-amber-50 border border-amber-100 rounded-md p-1.5 flex gap-1.5 items-start mt-0.5">
-                      <MessageSquare className="w-3 h-3 text-amber-600 mt-0.5 shrink-0" />
-                      <p className="text-[11px] text-amber-900 leading-tight whitespace-pre-wrap line-clamp-2 italic">
-                        {order.comment}
-                      </p>
-                    </div>
-                  )}
-                </motion.div>
+                    {order.orderNumber}
+                  </span>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleCopy(order) }} className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600">
+                          <Copy className="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent><p>Скопировать заказ</p></TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              </TableCell>
+              <TableCell>{order.fabricName}</TableCell>
+              <TableCell>{order.meters} м</TableCell>
+              <TableCell>{getStatusBadge(order.status)}</TableCell>
+              <TableCell>
+                {order.comment ? (
+                   <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                     <span className="line-clamp-1 max-w-[150px]">{order.comment}</span>
+                     <span className="text-amber-600 text-xs font-medium">(есть)</span>
+                   </div>
+                ) : <span className="text-slate-400">Нет</span>}
+              </TableCell>
+              <TableCell>
+                <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                  {renderActions(order)}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild onPointerDown={(e) => e.stopPropagation()}>
+                      <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => { setEditingComment(order); setCommentText(order.comment || '') }}><Edit2 className="mr-2 h-4 w-4" />Комментарий</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => deleteMutation.mutate(order.id)} className="text-red-600"><Trash2 className="mr-2 h-4 w-4" />Удалить</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </TableCell>
+              </motion.tr>
               ))}
-            </AnimatePresence>
-          </div>
-        </>
-      )}
+              </AnimatePresence>
+              </TableBody>
+              </Table>
+              </div>
 
-      <Dialog open={!!editingComment} onOpenChange={() => setEditingComment(null)}>
-        <DialogContent className="sm:max-w-[425px]">
+              {/* Mobile Card View */}
+              <div className="grid grid-cols-1 gap-2 md:hidden">
+              <AnimatePresence mode="popLayout">
+              {filteredOrders.map((order) => (
+              <motion.div
+              layout
+              key={order.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white rounded-xl border border-slate-200 shadow-sm p-2 flex flex-col gap-1 hover:border-slate-300 transition-colors cursor-pointer"
+              onClick={() => setCrmInfoOrder(order)}
+              >
+              {/* Шапка карточки */}
+              <div className="flex items-center justify-between gap-1">
+              <div className="flex items-center gap-1.5 overflow-hidden">
+              <span className="font-black text-base text-slate-900 leading-none shrink-0">
+                #{order.orderNumber}
+              </span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleCopy(order) }} className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600 shrink-0">
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>Скопировать заказ</p></TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <div className="shrink-0 scale-90 origin-left">
+                {getStatusBadge(order.status)}
+              </div>
+              </div>
+
+              <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+              {renderActions(order)}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild onPointerDown={(e) => e.stopPropagation()}>
+                  <Button variant="ghost" className="h-6 w-6 p-0">
+                    <MoreHorizontal className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => { setEditingComment(order); setCommentText(order.comment || '') }}>
+                    <Edit2 className="mr-2 h-4 w-4" />Комментарий
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => deleteMutation.mutate(order.id)} className="text-red-600">
+                    <Trash2 className="mr-2 h-4 w-4" />Удалить
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              </div>
+              </div>
+
+              {/* Основная информация: Ткань и Метраж */}
+              <div 
+              className={cn(
+              "transition-colors group px-1 py-0.5 rounded-md",
+              (order.status === 'ARRIVED' || order.status === 'ARCHIVED') && "hover:bg-slate-50"
+              )}
+              onClick={(e) => {
+              if (order.status === 'ARRIVED' || order.status === 'ARCHIVED') {
+                e.stopPropagation();
+                setTimelineOrder(order);
+              }
+              }}
+              >
+              <h3 className="text-[15px] font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1 leading-tight">
+              {order.fabricName}
+              </h3>
+              <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
+              {order.meters} м
+              </p>
+              </div>
+
+              {/* Комментарий */}
+              {order.comment && (
+              <div className="bg-amber-50 border border-amber-100 rounded-md p-1.5 flex gap-1.5 items-start mt-0.5" onClick={(e) => e.stopPropagation()}>
+              <MessageSquare className="w-3 h-3 text-amber-600 mt-0.5 shrink-0" />
+              <p className="text-[11px] text-amber-900 leading-tight whitespace-pre-wrap line-clamp-2 italic">
+                {order.comment}
+              </p>
+              </div>
+              )}
+              </motion.div>
+              ))}
+              </AnimatePresence>
+              </div>
+              </>
+              )}
+
+              <Dialog open={!!crmInfoOrder} onOpenChange={() => setCrmInfoOrder(null)}>
+              <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+              <span className="text-slate-500">Заказ #{crmInfoOrder?.orderNumber}</span>
+              <span className="text-slate-400">|</span>
+              <span>CRM Info</span>
+              </DialogTitle>
+              </DialogHeader>
+
+              <div className="space-y-4 py-4">
+              <div className="space-y-1">
+              <h4 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Оригинальное название</h4>
+              <p className="text-lg font-bold text-slate-900">
+              {isFetchingCrm ? <Skeleton className="h-7 w-3/4" /> : (crmInfoOrder?.crmTitle || fetchedCrmData?.title || '—')}
+              </p>
+              </div>
+
+              <div className="space-y-2">
+              <h4 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Комментарий из CRM</h4>
+              {isFetchingCrm ? (
+              <div className="space-y-2">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-2/3" />
+              </div>
+              ) : (
+              <div className={cn(
+              "p-4 rounded-md border text-sm leading-relaxed whitespace-pre-wrap",
+              (crmInfoOrder?.crmComment || fetchedCrmData?.crmComment) 
+              ? "bg-slate-50 border-slate-200 text-slate-700" 
+              : "bg-slate-50/50 border-slate-100 text-slate-400 italic"
+              )}>
+              {crmInfoOrder?.crmComment || fetchedCrmData?.crmComment || 'Нет комментария в CRM'}
+              </div>
+              )}
+              </div>
+
+              {crmInfoOrder?.crmId && (
+              <div className="pt-2">
+              <p className="text-[10px] text-slate-400 text-right uppercase tracking-widest">
+              CRM ID: {crmInfoOrder.crmId}
+              </p>
+              </div>
+              )}
+              </div>
+
+              <DialogFooter>
+              <Button variant="outline" onClick={() => setCrmInfoOrder(null)}>Закрыть</Button>
+              </DialogFooter>
+              </DialogContent>
+              </Dialog>
+
+              <Dialog open={!!editingComment} onOpenChange={() => setEditingComment(null)}>        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Комментарий</DialogTitle>
           </DialogHeader>
