@@ -52,3 +52,4 @@ server.log
 *.db
 *.db-journal
 repomix-output.xml
+repomix-output.xml

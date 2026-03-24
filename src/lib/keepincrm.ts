@@ -29,7 +29,7 @@ export async function getKeepinCrmDeal(id: number) {
   return {
     title: deal.title,
     crmTitle: deal.title,
-    crmComment: deal.custom_fields?.['Коментар'] || null,
+    crmComment: deal.comment || deal.custom_fields?.['Коментар'] || null,
     funnelId: deal.funnel ? deal.funnel.id : null,
     orderNumber,
   };
