@@ -10,14 +10,20 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import {
-  Sparkles, Wand2, Pencil, Calendar, Hash, ShieldAlert, ArrowRight,
+  Sparkles, Wand2, Pencil, Calendar, Hash, ShieldAlert, ArrowRight, BarChart3,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const CHANGELOG_VERSION = '2026-05-10'
+const CHANGELOG_VERSION = '2026-05-10-v2'
 const STORAGE_KEY = 'harisma-changelog-seen'
 
 const changes = [
+  {
+    icon: BarChart3,
+    tone: 'bg-slate-900 text-white',
+    title: 'Раздел «Аналитика»',
+    description: 'Новая вкладка с дашбордом: KPI, распределение по статусам, тренд по месяцам, топ тканей и список зависших заказов.',
+  },
   {
     icon: Wand2,
     tone: 'bg-violet-100 text-violet-700',
