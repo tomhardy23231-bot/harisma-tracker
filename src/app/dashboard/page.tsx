@@ -4,14 +4,14 @@ import { useQuery } from '@tanstack/react-query'
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  AreaChart, Area,
+  LineChart, Line, Legend,
 } from 'recharts'
 import {
   Package, Truck, CheckCircle, Archive, Layers, Clock, AlertTriangle,
   TrendingUp, Sparkles, Ruler,
 } from 'lucide-react'
 import {
-  startOfMonth, format, parseISO, differenceInDays, subMonths, isAfter,
+  startOfMonth, format, parseISO, differenceInDays, subMonths, addMonths, isAfter,
 } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
@@ -67,8 +67,11 @@ export default function DashboardPage() {
 
   const now = new Date()
   const monthStart = startOfMonth(now)
-  const ordersThisMonth = orders.filter(o => isAfter(parseISO(o.createdAt), monthStart))
-  const metersThisMonth = ordersThisMonth.reduce((s, o) => s + (o.meters || 0), 0)
+  // «За месяц» = закрытых (ушедших в архив) в текущем месяце — отражает реальный production output
+  const archivedThisMonth = orders.filter(o => o.archivedAt && isAfter(parseISO(o.archivedAt), monthStart))
+  const metersThisMonth = archivedThisMonth.reduce((s, o) => s + (o.meters || 0), 0)
+  // Дополнительно: созданных в этом месяце (на хинте)
+  const createdThisMonth = orders.filter(o => isAfter(parseISO(o.createdAt), monthStart)).length
 
   // Среднее время от создания до архивации (по архивированным)
   const archivedWithDates = orders.filter(o => o.status === 'ARCHIVED' && o.archivedAt)
@@ -84,19 +87,24 @@ export default function DashboardPage() {
     color: STATUS_COLORS[s],
   })).filter(x => x.value > 0)
 
-  // ============ Тренд по месяцам (последние 6 месяцев) ============
+  // ============ Тренд по месяцам (последние 6 месяцев) — создано vs закрыто ============
   const monthsData = Array.from({ length: 6 }, (_, i) => {
     const d = subMonths(now, 5 - i)
     const start = startOfMonth(d)
-    const end = startOfMonth(subMonths(d, -1))
-    const monthOrders = orders.filter(o => {
-      const created = parseISO(o.createdAt)
-      return created >= start && created < end
-    })
+    const end = startOfMonth(addMonths(d, 1))
+    const created = orders.filter(o => {
+      const t = parseISO(o.createdAt)
+      return t >= start && t < end
+    }).length
+    const closed = orders.filter(o => {
+      if (!o.archivedAt) return false
+      const t = parseISO(o.archivedAt)
+      return t >= start && t < end
+    }).length
     return {
       month: format(d, 'LLL', { locale: ru }),
-      orders: monthOrders.length,
-      meters: Math.round(monthOrders.reduce((s, o) => s + (o.meters || 0), 0)),
+      created,
+      closed,
     }
   })
 
@@ -159,9 +167,9 @@ export default function DashboardPage() {
         />
         <KpiCard
           icon={<Ruler className="w-5 h-5" />}
-          label="Метров за месяц"
-          value={`${metersThisMonth.toFixed(1)} м`}
-          hint={`${ordersThisMonth.length} заказ(ов)`}
+          label="Закрыто за месяц"
+          value={`${archivedThisMonth.length} зак.`}
+          hint={`${metersThisMonth.toFixed(1)} м · создано ${createdThisMonth}`}
           tone="bg-emerald-100 text-emerald-700"
         />
         <KpiCard
@@ -224,18 +232,12 @@ export default function DashboardPage() {
           )}
         </Card>
 
-        <Card title="Заказы по месяцам" icon={<TrendingUp className="w-4 h-4" />}>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={monthsData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-              <defs>
-                <linearGradient id="fillOrders" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#0f172a" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="#0f172a" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
+        <Card title="Создано / закрыто по месяцам" icon={<TrendingUp className="w-4 h-4" />}>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={monthsData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} width={32} />
+              <YAxis tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} width={32} allowDecimals={false} />
               <Tooltip
                 contentStyle={{
                   background: 'white',
@@ -243,16 +245,15 @@ export default function DashboardPage() {
                   borderRadius: 8,
                   fontSize: 13,
                 }}
-                formatter={(v: number, name: string) => [v, name === 'orders' ? 'Заказов' : 'Метров']}
               />
-              <Area
-                type="monotone"
-                dataKey="orders"
-                stroke="#0f172a"
-                strokeWidth={2}
-                fill="url(#fillOrders)"
+              <Legend
+                iconType="circle"
+                wrapperStyle={{ fontSize: 12, paddingTop: 4 }}
+                formatter={(v) => v === 'created' ? 'Создано' : 'Закрыто'}
               />
-            </AreaChart>
+              <Line type="monotone" dataKey="created" name="created" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <Line type="monotone" dataKey="closed" name="closed" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+            </LineChart>
           </ResponsiveContainer>
         </Card>
       </div>
