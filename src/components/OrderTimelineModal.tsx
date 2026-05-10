@@ -43,7 +43,7 @@ export function OrderTimelineModal({ order, isOpen, onClose }: OrderTimelineModa
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] bg-slate-100 border-slate-300">
         <DialogHeader>
           <DialogTitle>История заказа #{order.orderNumber}</DialogTitle>
         </DialogHeader>

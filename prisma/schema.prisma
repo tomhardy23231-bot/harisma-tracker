@@ -44,6 +44,8 @@ model FabricOrder {
   orderNumber String
   fabricName  String
   meters      Float
+  model       String?
+  modules     String?
   status      OrderStatus @default(PENDING)
   comment     String?
   crmId       Int?

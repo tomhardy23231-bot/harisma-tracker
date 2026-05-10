@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import QueryProvider from "./query-provider";
 import { Navigation } from "@/components/Navigation";
+import { WhatsNewModal } from "@/components/WhatsNewModal";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,8 +37,8 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
         <QueryProvider>
-          <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 to-slate-100">
-            <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-20">
+          <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-300 to-slate-400/80">
+            <header className="bg-white/90 backdrop-blur-sm border-b border-slate-200 shadow-sm sticky top-0 z-20">
               <div className="container mx-auto px-4 py-2 flex items-baseline gap-x-2">
                 <h1 className="text-lg font-bold text-slate-800 tracking-tight">
                   HARISMA
@@ -50,6 +51,7 @@ export default function RootLayout({
               {children}
             </main>
           </div>
+          <WhatsNewModal />
         </QueryProvider>
         <Toaster position="top-center" richColors />
       </body>

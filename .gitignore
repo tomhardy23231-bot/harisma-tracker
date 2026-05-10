@@ -53,3 +53,7 @@ server.log
 *.db-journal
 repomix-output.xml
 repomix-output.xml
+
+# CRM debug dumps and helpers (contain real client data / API keys)
+deal-*.json
+fetch-deals.ps1
