@@ -142,6 +142,13 @@ export function OrderList({ status, dateFilterField }: OrderListProps) {
     enabled: !!crmInfoOrder && !crmInfoOrder.crmComment && !!crmInfoOrder.crmId,
   });
 
+  // Бэкфил CRM-комментария из ленивой подгрузки, если в БД пусто и пользователь ещё не вводил
+  useEffect(() => {
+    if (!fetchedCrmData?.crmComment) return
+    if (crmInfoOrder?.crmComment) return
+    setEditForm((prev) => prev.crmComment ? prev : { ...prev, crmComment: fetchedCrmData.crmComment! })
+  }, [fetchedCrmData?.crmComment, crmInfoOrder?.crmComment])
+
   const statusMutation = useMutation({
     mutationFn: async ({ orderId, newStatus }: { orderId: string, newStatus: OrderStatus }) => {
       const order = orders.find((o) => o.id === orderId)
