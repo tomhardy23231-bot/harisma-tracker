@@ -10,49 +10,31 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import {
-  Sparkles, Wand2, Pencil, Calendar, Hash, ShieldAlert, ArrowRight, BarChart3,
+  Sparkles, Pencil, ArrowRight, BarChart3, Smartphone,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const CHANGELOG_VERSION = '2026-05-10-v2'
+const CHANGELOG_VERSION = '2026-05-12-v3'
 const STORAGE_KEY = 'harisma-changelog-seen'
 
 const changes = [
   {
-    icon: BarChart3,
-    tone: 'bg-slate-900 text-white',
-    title: 'Раздел «Аналитика»',
-    description: 'Новая вкладка с дашбордом: KPI, распределение по статусам, тренд по месяцам, топ тканей и список зависших заказов.',
-  },
-  {
-    icon: Wand2,
-    tone: 'bg-violet-100 text-violet-700',
-    title: 'Автозаполнение из CRM',
-    description: 'Вставь ID сделки — ткань, модель и модули подтянутся сами. Если ткань не указана в CRM — увидишь комментарий, чтобы выписать её вручную.',
-  },
-  {
     icon: Pencil,
     tone: 'bg-blue-100 text-blue-700',
-    title: 'Редактирование прямо в карточке заказа',
-    description: 'Открой заказ → нажми «Редактировать». Можно менять ткань, метраж, модель, модули и оба комментария.',
+    title: 'Поправили карточку заказа',
+    description: 'В мобильной версии больше ничего не налазит друг на друга — статус и кнопки помещаются нормально.',
   },
   {
-    icon: Calendar,
+    icon: Smartphone,
     tone: 'bg-emerald-100 text-emerald-700',
-    title: 'Фильтр по дате в архиве',
-    description: 'По умолчанию показывается текущий месяц. Видно количество за период и всего в архиве.',
+    title: 'Кнопки переехали вниз',
+    description: 'На телефоне навигация по разделам теперь снизу экрана — как в обычных приложениях. До любой вкладки достаёт большой палец.',
   },
   {
-    icon: Hash,
-    tone: 'bg-amber-100 text-amber-700',
-    title: 'Счётчики в навигации',
-    description: 'Возле каждой вкладки — бейдж со сколько сейчас заказов в этом статусе.',
-  },
-  {
-    icon: ShieldAlert,
-    tone: 'bg-red-100 text-red-700',
-    title: 'Подтверждение удаления',
-    description: 'Случайно удалить заказ больше нельзя — теперь сначала диалог подтверждения.',
+    icon: BarChart3,
+    tone: 'bg-slate-900 text-white',
+    title: 'Статистика по дням в Аналитике',
+    description: 'К графику «Создано / закрыто по месяцам» добавили такой же по дням — за последние 30 дней. Старый, по месяцам, тоже остался.',
   },
 ]
 
