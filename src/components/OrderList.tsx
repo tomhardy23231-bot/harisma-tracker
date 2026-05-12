@@ -557,10 +557,10 @@ export function OrderList({ status, dateFilterField }: OrderListProps) {
               className="bg-white rounded-xl border border-slate-200 shadow-md hover:shadow-lg p-2 flex flex-col gap-1 hover:border-slate-300 transition-all cursor-pointer"
               onClick={() => openOrder(order)}
               >
-              {/* Шапка карточки: номер + меню */}
+              {/* Шапка карточки */}
               <div className="flex items-center justify-between gap-1">
-              <div className="flex items-center gap-1 min-w-0 flex-1">
-              <span className="font-black text-base text-slate-900 leading-none truncate">
+              <div className="flex items-center gap-1.5 overflow-hidden">
+              <span className="font-black text-base text-slate-900 leading-none shrink-0">
                 #{order.orderNumber}
               </span>
               <TooltipProvider>
@@ -573,9 +573,13 @@ export function OrderList({ status, dateFilterField }: OrderListProps) {
                   <TooltipContent><p>Скопировать заказ</p></TooltipContent>
                 </Tooltip>
               </TooltipProvider>
+              <div className="shrink-0 scale-90 origin-left">
+                {getStatusBadge(order.status)}
+              </div>
               </div>
 
               <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+              {renderActions(order)}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild onPointerDown={(e) => e.stopPropagation()}>
                   <Button variant="ghost" className="h-6 w-6 p-0">
@@ -594,16 +598,6 @@ export function OrderList({ status, dateFilterField }: OrderListProps) {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              </div>
-              </div>
-
-              {/* Статус + действия в отдельной строке, чтобы не налезало */}
-              <div className="flex items-center justify-between gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
-              <div className="scale-90 origin-left shrink-0">
-                {getStatusBadge(order.status)}
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                {renderActions(order)}
               </div>
               </div>
 
