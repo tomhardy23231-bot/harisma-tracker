@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import {
   startOfMonth, format, parseISO, differenceInDays, subMonths, addMonths, isAfter,
+  startOfDay, subDays, addDays,
 } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
@@ -103,6 +104,27 @@ export default function DashboardPage() {
     }).length
     return {
       month: format(d, 'LLL', { locale: ru }),
+      created,
+      closed,
+    }
+  })
+
+  // ============ Тренд по дням (последние 30 дней) — создано vs закрыто ============
+  const daysData = Array.from({ length: 30 }, (_, i) => {
+    const d = subDays(startOfDay(now), 29 - i)
+    const start = d
+    const end = addDays(d, 1)
+    const created = orders.filter(o => {
+      const t = parseISO(o.createdAt)
+      return t >= start && t < end
+    }).length
+    const closed = orders.filter(o => {
+      if (!o.archivedAt) return false
+      const t = parseISO(o.archivedAt)
+      return t >= start && t < end
+    }).length
+    return {
+      day: format(d, 'd MMM', { locale: ru }),
       created,
       closed,
     }
@@ -257,6 +279,39 @@ export default function DashboardPage() {
           </ResponsiveContainer>
         </Card>
       </div>
+
+      {/* Daily trend (last 30 days) */}
+      <Card title="Создано / закрыто по дням" icon={<TrendingUp className="w-4 h-4" />} subtitle="последние 30 дней">
+        <ResponsiveContainer width="100%" height={240}>
+          <LineChart data={daysData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+            <XAxis
+              dataKey="day"
+              tick={{ fontSize: 11, fill: '#64748b' }}
+              axisLine={false}
+              tickLine={false}
+              interval="preserveStartEnd"
+              minTickGap={20}
+            />
+            <YAxis tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} width={32} allowDecimals={false} />
+            <Tooltip
+              contentStyle={{
+                background: 'white',
+                border: '1px solid #cbd5e1',
+                borderRadius: 8,
+                fontSize: 13,
+              }}
+            />
+            <Legend
+              iconType="circle"
+              wrapperStyle={{ fontSize: 12, paddingTop: 4 }}
+              formatter={(v) => v === 'created' ? 'Создано' : 'Закрыто'}
+            />
+            <Line type="monotone" dataKey="created" name="created" stroke="#3b82f6" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 5 }} />
+            <Line type="monotone" dataKey="closed" name="closed" stroke="#10b981" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 5 }} />
+          </LineChart>
+        </ResponsiveContainer>
+      </Card>
 
       {/* Top fabrics */}
       <Card title="Топ тканей по метражу" icon={<Package className="w-4 h-4" />}>
