@@ -37,7 +37,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { Copy, Edit2, Trash2, Search, MoreHorizontal, MessageSquare, Archive, ArrowRight, RotateCcw, Package, Ruler, Layers, Sofa, FileText, Hash, Calendar, X, Save, Pencil, Truck, CheckCircle, Clock, History } from 'lucide-react'
+import { Copy, Edit2, Trash2, Search, MoreHorizontal, MessageSquare, Archive, ArrowRight, RotateCcw, Package, Ruler, Layers, Sofa, FileText, Hash, Calendar, X, Save, Pencil, Truck, CheckCircle } from 'lucide-react'
 import { startOfMonth, endOfMonth, format } from 'date-fns'
 import {
   Tooltip,
@@ -322,86 +322,6 @@ export function OrderList({ status, dateFilterField }: OrderListProps) {
     setDateTo('')
   }
 
-  // Кнопки действий для мобильной карточки — с подписями и иконками, во всю ширину
-  const renderMobileActions = (order: FabricOrder) => {
-    const currentStatus = order.status
-
-    const historyBtn = (
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={(e) => { e.stopPropagation(); setTimelineOrder(order) }}
-        className="flex-1 h-9 gap-1.5 text-xs font-medium border-slate-200 text-slate-700 hover:bg-slate-50"
-      >
-        <History className="w-3.5 h-3.5" />
-        История
-      </Button>
-    )
-
-    if (currentStatus === 'PENDING') {
-      return (
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            onClick={(e) => { e.stopPropagation(); statusMutation.mutate({ orderId: order.id, newStatus: 'ORDERED' }) }}
-            className="flex-1 h-9 gap-1.5 text-xs font-semibold bg-yellow-500 hover:bg-yellow-600 text-white shadow-sm"
-          >
-            <Truck className="w-3.5 h-3.5" />
-            Заказать
-          </Button>
-          {historyBtn}
-        </div>
-      )
-    }
-    if (currentStatus === 'ORDERED') {
-      return (
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            onClick={(e) => { e.stopPropagation(); statusMutation.mutate({ orderId: order.id, newStatus: 'ARRIVED' }) }}
-            className="flex-1 h-9 gap-1.5 text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm"
-          >
-            <CheckCircle className="w-3.5 h-3.5" />
-            На склад
-          </Button>
-          {historyBtn}
-        </div>
-      )
-    }
-    if (currentStatus === 'ARRIVED') {
-      return (
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            onClick={(e) => { e.stopPropagation(); statusMutation.mutate({ orderId: order.id, newStatus: 'ARCHIVED' }) }}
-            className="flex-1 h-9 gap-1.5 text-xs font-semibold bg-slate-700 hover:bg-slate-800 text-white shadow-sm"
-          >
-            <Archive className="w-3.5 h-3.5" />
-            В архив
-          </Button>
-          {historyBtn}
-        </div>
-      )
-    }
-    if (currentStatus === 'ARCHIVED') {
-      return (
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={(e) => { e.stopPropagation(); statusMutation.mutate({ orderId: order.id, newStatus: 'ARRIVED' }) }}
-            className="flex-1 h-9 gap-1.5 text-xs font-semibold border-slate-300 text-slate-700 hover:bg-slate-50"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Вернуть
-          </Button>
-          {historyBtn}
-        </div>
-      )
-    }
-    return null
-  }
-
   const renderActions = (order: FabricOrder) => {
     // Actions based on individual order status for global search consistency
     const currentStatus = order.status
@@ -634,28 +554,32 @@ export function OrderList({ status, dateFilterField }: OrderListProps) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="bg-white rounded-xl border border-slate-200 shadow-md hover:shadow-lg overflow-hidden flex flex-col hover:border-slate-300 transition-all cursor-pointer"
+              className="bg-white rounded-xl border border-slate-200 shadow-md hover:shadow-lg p-2 flex flex-col gap-1 hover:border-slate-300 transition-all cursor-pointer"
               onClick={() => openOrder(order)}
               >
-              {/* Шапка карточки: номер + статус + меню */}
-              <div className="flex items-center justify-between gap-2 px-3 pt-2.5 pb-2">
-              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+              {/* Шапка карточки: номер + меню */}
+              <div className="flex items-center justify-between gap-1">
+              <div className="flex items-center gap-1 min-w-0 flex-1">
               <span className="font-black text-base text-slate-900 leading-none truncate">
                 #{order.orderNumber}
               </span>
-              <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleCopy(order) }} className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600 shrink-0">
-                <Copy className="h-3 w-3" />
-              </Button>
-              <div className="scale-90 origin-left shrink-0">
-                {getStatusBadge(order.status)}
-              </div>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleCopy(order) }} className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600 shrink-0">
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>Скопировать заказ</p></TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               </div>
 
-              <div className="flex items-center shrink-0" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild onPointerDown={(e) => e.stopPropagation()}>
-                  <Button variant="ghost" className="h-7 w-7 p-0">
-                    <MoreHorizontal className="h-4 w-4" />
+                  <Button variant="ghost" className="h-6 w-6 p-0">
+                    <MoreHorizontal className="h-3.5 w-3.5" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -673,12 +597,21 @@ export function OrderList({ status, dateFilterField }: OrderListProps) {
               </div>
               </div>
 
+              {/* Статус + действия в отдельной строке, чтобы не налезало */}
+              <div className="flex items-center justify-between gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+              <div className="scale-90 origin-left shrink-0">
+                {getStatusBadge(order.status)}
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                {renderActions(order)}
+              </div>
+              </div>
+
               {/* Основная информация: Ткань и Метраж */}
-              <div className="px-3 pb-2 group">
-              <h3 className="text-[15px] font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1 leading-tight">
+              <div className="transition-colors group px-1 py-0.5 rounded-md">              <h3 className="text-[15px] font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1 leading-tight">
               {order.fabricName}
               </h3>
-              <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider mt-0.5">
+              <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
               {order.meters} м
               </p>
               {(order.model || order.modules) && (
@@ -699,18 +632,13 @@ export function OrderList({ status, dateFilterField }: OrderListProps) {
 
               {/* Комментарий */}
               {order.comment && (
-              <div className="mx-3 mb-2 bg-amber-50 border border-amber-100 rounded-md p-1.5 flex gap-1.5 items-start" onClick={(e) => e.stopPropagation()}>
+              <div className="bg-amber-50 border border-amber-100 rounded-md p-1.5 flex gap-1.5 items-start mt-0.5" onClick={(e) => e.stopPropagation()}>
               <MessageSquare className="w-3 h-3 text-amber-600 mt-0.5 shrink-0" />
               <p className="text-[11px] text-amber-900 leading-tight whitespace-pre-wrap line-clamp-2 italic">
                 {order.comment}
               </p>
               </div>
               )}
-
-              {/* Нижняя панель действий */}
-              <div className="px-3 py-2 border-t border-slate-100 bg-slate-50/50">
-                {renderMobileActions(order)}
-              </div>
               </motion.div>
               ))}
               </AnimatePresence>
