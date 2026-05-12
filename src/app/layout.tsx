@@ -47,7 +47,7 @@ export default function RootLayout({
               </div>
             </header>
             <Navigation />
-            <main className="flex-1 container mx-auto px-4 py-4 flex flex-col">
+            <main className="flex-1 container mx-auto px-4 py-4 pb-24 md:pb-4 flex flex-col">
               {children}
             </main>
           </div>
