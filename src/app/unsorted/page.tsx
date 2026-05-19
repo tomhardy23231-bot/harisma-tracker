@@ -15,12 +15,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
-import {
   Dialog,
   DialogContent,
   DialogFooter,
@@ -54,7 +48,6 @@ import {
   Layers,
   MessageSquare,
   Hash,
-  Download,
   MoreHorizontal,
   FileText,
   Search,
@@ -315,24 +308,6 @@ export default function UnsortedDealsPage() {
                 className="pl-9 h-9 w-full md:w-[260px]"
               />
             </div>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    onClick={() => syncMutation.mutate(true)}
-                    disabled={syncMutation.isPending}
-                    className="h-9 gap-2"
-                  >
-                    <Download className={cn("w-4 h-4", syncMutation.isPending && "animate-pulse")} />
-                    Полный
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Перетянуть ВСЕ активные сделки из CRM<br/>(а не только новее последней)</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
             <Button
               onClick={() => syncMutation.mutate(false)}
               disabled={syncMutation.isPending}
@@ -346,9 +321,6 @@ export default function UnsortedDealsPage() {
 
         {lastSync && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 border-t border-slate-100 pt-2.5">
-            <SyncStat label="режим" value={lastSync.mode === 'full' ? 'полный' : 'инкремент'} />
-            <SyncStat label="активных в CRM" value={lastSync.fetchedFromCrm} />
-            <SyncStat label="архивных в CRM" value={lastSync.archivedSeenInCrm} />
             <SyncStat label="новых" value={lastSync.imported} tone={lastSync.imported > 0 ? 'good' : undefined} />
             <SyncStat label="обновлено" value={lastSync.updated} />
             <SyncStat label="убрано архивных" value={lastSync.cleanedArchived} tone={lastSync.cleanedArchived > 0 ? 'good' : undefined} />
@@ -364,7 +336,6 @@ export default function UnsortedDealsPage() {
         <EmptyState
           hasSearch={search.length > 0}
           onSync={() => syncMutation.mutate(false)}
-          onForce={() => syncMutation.mutate(true)}
           syncing={syncMutation.isPending}
         />
       ) : (
@@ -755,8 +726,8 @@ function ModalField({ icon, label, value, onChange, type = 'text', step, suffix,
 }
 
 function EmptyState({
-  hasSearch, onSync, onForce, syncing,
-}: { hasSearch: boolean; onSync: () => void; onForce: () => void; syncing: boolean }) {
+  hasSearch, onSync, syncing,
+}: { hasSearch: boolean; onSync: () => void; syncing: boolean }) {
   if (hasSearch) {
     return (
       <div className="bg-white rounded-xl border border-slate-300 border-dashed p-12 flex flex-col items-center justify-center gap-3 text-center">
@@ -778,20 +749,13 @@ function EmptyState({
       <div className="max-w-sm">
         <p className="text-base font-semibold text-slate-800">Пусто</p>
         <p className="text-sm text-slate-500 mt-1 leading-relaxed">
-          Если в CRM есть активные сделки, которых пока нет в трекере — нажмите «Полный»,
-          чтобы перетянуть все. Обычный «Импорт» тянет только новые с прошлого раза.
+          Нажмите «Импорт из CRM», чтобы подтянуть новые активные сделки из воронок 1 и 8.
         </p>
       </div>
-      <div className="flex gap-2 mt-2">
-        <Button onClick={onForce} disabled={syncing} variant="outline" className="h-10 gap-2">
-          <Download className="w-4 h-4" />
-          Полный
-        </Button>
-        <Button onClick={onSync} disabled={syncing} className="h-10 bg-slate-900 hover:bg-slate-800 gap-2">
-          <RefreshCcw className={cn("w-4 h-4", syncing && "animate-spin")} />
-          Импорт из CRM
-        </Button>
-      </div>
+      <Button onClick={onSync} disabled={syncing} className="h-10 mt-2 bg-slate-900 hover:bg-slate-800 gap-2">
+        <RefreshCcw className={cn("w-4 h-4", syncing && "animate-spin")} />
+        Импорт из CRM
+      </Button>
     </div>
   )
 }
