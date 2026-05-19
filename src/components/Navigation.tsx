@@ -51,7 +51,10 @@ export function Navigation() {
     refetchOnWindowFocus: false,
   })
 
+  // В счётчик по статусу не попадают заказы, которые сейчас в ожидании —
+  // они переехали на отдельную вкладку «Ожидание».
   const counts = orders.reduce<Record<string, number>>((acc, o) => {
+    if (o.waitingSince && o.status !== 'ARCHIVED') return acc
     acc[o.status] = (acc[o.status] || 0) + 1
     return acc
   }, {})

@@ -384,10 +384,13 @@ export function OrderList({ mode = 'status', status, dateFilterField }: OrderLis
     )
   }
 
-  // Все заказы данной выборки (для счётчика «всего»)
+  // Все заказы данной выборки (для счётчика «всего»).
+  // Заказы в ожидании НЕ показываются на обычных страницах статусов —
+  // только на /waiting. Архив — исключение: туда попадают и waiting-заказы,
+  // если их в итоге заархивировали (их waitingSince при этом обнуляется).
   const totalForStatus = isWaitingMode
     ? orders.filter((o) => o.waitingSince && o.status !== 'ARCHIVED').length
-    : orders.filter((o) => o.status === status).length
+    : orders.filter((o) => o.status === status && !o.waitingSince).length
 
   // Smart Search Logic
   const filteredOrders = orders
@@ -409,6 +412,10 @@ export function OrderList({ mode = 'status', status, dateFilterField }: OrderLis
         if (order.status === 'ARCHIVED') return false
       } else {
         if (order.status !== status) return false
+        // Заказы в ожидании уходят с обычных страниц в /waiting.
+        // Не относится к ARCHIVED — туда waiting просто не должен попадать
+        // живым (сначала снимут ожидание, потом архив).
+        if (order.waitingSince) return false
       }
 
       // Фильтр по дате — только если задано поле и есть границы
