@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { updateKeepinCrmStageToSorted } from "@/lib/keepincrm";
 
 /**
  * Превращает сырую сделку из UnsortedDeal в полноценный FabricOrder со статусом PENDING.
@@ -82,6 +83,16 @@ export async function POST(
       where: { id: deal.id },
       data: { processedAt: new Date() },
     });
+
+    // Best-effort: переводим сделку в CRM на стадию «Розібрано» (id=110).
+    // Ошибка CRM не должна валить локальный promote — заказ уже создан.
+    if (deal.crmId && deal.funnelId) {
+      try {
+        await updateKeepinCrmStageToSorted(deal.crmId, deal.funnelId);
+      } catch (e) {
+        console.error("Failed to set CRM stage to Розібрано:", e);
+      }
+    }
 
     return NextResponse.json(fabricOrder);
   } catch (error: any) {

@@ -131,6 +131,36 @@ export async function updateKeepinCrmStage(crmId: number, funnelId: number) {
   return response.json();
 }
 
+/**
+ * Переводит сделку в стадию «Розібрано»:
+ *   воронка 1 → stage 110
+ *   воронка 8 → stage 111
+ * Вызывается при промоушене из «Не разобранных» в «Нужно заказать»,
+ * чтобы в CRM сделка тоже сразу ушла на стадию «разобрано».
+ */
+export async function updateKeepinCrmStageToSorted(crmId: number, funnelId: number) {
+  let stageId: number | null = null;
+  if (funnelId === 1) stageId = 110;
+  else if (funnelId === 8) stageId = 111;
+  if (stageId === null) return null;
+
+  const response = await fetch(`${KEEPINCRM_API_URL}/agreements/${crmId}`, {
+    method: "PUT",
+    headers: {
+      "X-Auth-Token": getApiKey(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ stage_id: stageId }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`Failed to set stage Розібрано on deal ${crmId}: ${response.status} ${text}`);
+  }
+
+  return response.json().catch(() => null);
+}
+
 export interface CrmFieldUpdate {
   comment?: string | null;
   fabric?: string | null;
