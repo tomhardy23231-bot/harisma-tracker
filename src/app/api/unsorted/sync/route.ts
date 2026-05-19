@@ -61,12 +61,17 @@ export async function POST(req: Request) {
     );
 
     let imported = 0;
-    let skipped = 0;
     let updated = 0;
+    let skippedInFabric = 0;
+    let skippedDecided = 0;
 
     for (const deal of fetched) {
-      if (fabricCrmIds.has(deal.crmId) || decidedCrmIds.has(deal.crmId)) {
-        skipped += 1;
+      if (fabricCrmIds.has(deal.crmId)) {
+        skippedInFabric += 1;
+        continue;
+      }
+      if (decidedCrmIds.has(deal.crmId)) {
+        skippedDecided += 1;
         continue;
       }
 
@@ -112,7 +117,8 @@ export async function POST(req: Request) {
       fetchedFromCrm: fetched.length,
       imported,
       updated,
-      skipped,
+      skippedInFabric,
+      skippedDecided,
       stopAtCrmId,
       mode: force ? "full" : "incremental",
     });
