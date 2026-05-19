@@ -52,7 +52,9 @@ import {
   FileText,
   Search,
   Save,
+  ExternalLink,
 } from 'lucide-react'
+import { keepinCrmDealUrl } from '@/lib/keepincrm-web'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -94,6 +96,10 @@ interface SyncResult {
   mode: 'full' | 'incremental'
 }
 
+const FUNNEL_FILTER_KEY = 'harisma-unsorted-funnel-filter'
+type FunnelFilter = 'all' | '1' | '8'
+const FUNNEL_FILTER_VALUES: FunnelFilter[] = ['all', '1', '8']
+
 export default function UnsortedDealsPage() {
   const qc = useQueryClient()
   const [searchQuery, setSearchQuery] = useState('')
@@ -101,6 +107,22 @@ export default function UnsortedDealsPage() {
   const [draft, setDraft] = useState<DraftValues>({ fabric: '', meters: '', model: '', modules: '', crmComment: '' })
   const [dismissCandidate, setDismissCandidate] = useState<UnsortedDeal | null>(null)
   const [lastSync, setLastSync] = useState<SyncResult | null>(null)
+  const [funnelFilter, setFunnelFilter] = useState<FunnelFilter>('all')
+
+  // Восстанавливаем последний выбранный фильтр по воронке.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(FUNNEL_FILTER_KEY)
+      if (raw && (FUNNEL_FILTER_VALUES as string[]).includes(raw)) {
+        setFunnelFilter(raw as FunnelFilter)
+      }
+    } catch { /* ignore */ }
+  }, [])
+
+  const changeFunnelFilter = (f: FunnelFilter) => {
+    setFunnelFilter(f)
+    try { localStorage.setItem(FUNNEL_FILTER_KEY, f) } catch { /* ignore */ }
+  }
 
   const { data: deals = [], isLoading } = useQuery<UnsortedDeal[]>({
     queryKey: ['unsorted-deals'],
@@ -242,16 +264,34 @@ export default function UnsortedDealsPage() {
   })
 
   const search = searchQuery.toLowerCase().trim()
-  const filtered = deals
+
+  // Поисковая фильтрация — отдельно, чтобы счётчики у переключателя воронок
+  // показывали кол-во с учётом текущего поиска (но без учёта выбранной воронки).
+  const searchFiltered = deals.filter((d) => {
+    if (!search) return true
+    return (
+      (d.orderNumber ?? '').toLowerCase().includes(search) ||
+      String(d.crmId).includes(search) ||
+      d.crmTitle.toLowerCase().includes(search) ||
+      (d.fabric ?? '').toLowerCase().includes(search) ||
+      (d.crmComment ?? '').toLowerCase().includes(search)
+    )
+  })
+
+  const funnelCounts = searchFiltered.reduce<{ all: number; '1': number; '8': number }>(
+    (acc, d) => {
+      acc.all++
+      if (d.funnelId === 1) acc['1']++
+      else if (d.funnelId === 8) acc['8']++
+      return acc
+    },
+    { all: 0, '1': 0, '8': 0 }
+  )
+
+  const filtered = searchFiltered
     .filter((d) => {
-      if (!search) return true
-      return (
-        (d.orderNumber ?? '').toLowerCase().includes(search) ||
-        String(d.crmId).includes(search) ||
-        d.crmTitle.toLowerCase().includes(search) ||
-        (d.fabric ?? '').toLowerCase().includes(search) ||
-        (d.crmComment ?? '').toLowerCase().includes(search)
-      )
+      if (funnelFilter === 'all') return true
+      return String(d.funnelId) === funnelFilter
     })
     .sort((a, b) => {
       const an = parseInt(a.orderNumber || String(a.crmId), 10)
@@ -269,7 +309,7 @@ export default function UnsortedDealsPage() {
           : "border-emerald-300 text-emerald-700 bg-emerald-50"
       )}
     >
-      Воронка {funnelId}
+      {funnelId === 8 ? 'MebelMarket' : funnelId === 1 ? 'Харизма' : `Воронка ${funnelId}`}
     </Badge>
   )
 
@@ -327,6 +367,12 @@ export default function UnsortedDealsPage() {
             <SyncStat label="уже в трекере" value={lastSync.skippedInFabric} />
           </div>
         )}
+
+        <FunnelFilterTabs
+          value={funnelFilter}
+          onChange={changeFunnelFilter}
+          counts={funnelCounts}
+        />
       </div>
 
       {/* Список */}
@@ -504,6 +550,7 @@ export default function UnsortedDealsPage() {
       <Dialog open={!!opened} onOpenChange={(o) => { if (!o) setOpened(null) }}>
         <DialogContent
           showCloseButton={false}
+          onOpenAutoFocus={(e) => e.preventDefault()}
           className="sm:max-w-[760px] w-[95vw] p-0 overflow-hidden gap-0 bg-slate-100 border-slate-300"
         >
           <DialogHeader className="px-6 pt-5 pb-4 border-b border-slate-200 bg-white">
@@ -573,9 +620,16 @@ export default function UnsortedDealsPage() {
 
           <DialogFooter className="px-6 py-3 bg-slate-200 border-t border-slate-300 sm:justify-between sm:items-center gap-2">
             {opened?.crmId ? (
-              <span className="text-[10px] text-slate-400 uppercase tracking-widest font-mono">
-                CRM ID · {opened.crmId}
-              </span>
+              <a
+                href={keepinCrmDealUrl(opened.crmId)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium shadow-sm transition-colors"
+                title={`Открыть сделку ${opened.crmId} в KeepinCRM`}
+              >
+                <ExternalLink className="w-4 h-4" />
+                Открыть в CRM
+              </a>
             ) : <span />}
             <div className="flex gap-2 flex-wrap justify-end items-center">
               <DropdownMenu>
@@ -670,6 +724,87 @@ export default function UnsortedDealsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  )
+}
+
+interface FunnelFilterTabsProps {
+  value: FunnelFilter
+  onChange: (v: FunnelFilter) => void
+  counts: { all: number; '1': number; '8': number }
+}
+
+function FunnelFilterTabs({ value, onChange, counts }: FunnelFilterTabsProps) {
+  const tabs: Array<{
+    key: FunnelFilter
+    label: string
+    count: number
+    activeClass: string
+    dotClass?: string
+  }> = [
+    {
+      key: 'all',
+      label: 'Все',
+      count: counts.all,
+      activeClass: 'bg-slate-900 text-white border-slate-900',
+    },
+    {
+      key: '1',
+      label: 'Харизма',
+      count: counts['1'],
+      activeClass: 'bg-emerald-600 text-white border-emerald-600',
+      dotClass: 'bg-emerald-500',
+    },
+    {
+      key: '8',
+      label: 'MebelMarket',
+      count: counts['8'],
+      activeClass: 'bg-violet-600 text-white border-violet-600',
+      dotClass: 'bg-violet-500',
+    },
+  ]
+
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap border-t border-slate-100 pt-2.5">
+      <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mr-1">
+        Воронка:
+      </span>
+      {tabs.map((t) => {
+        const active = value === t.key
+        return (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => onChange(t.key)}
+            className={cn(
+              "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border text-xs font-medium transition-colors",
+              active
+                ? t.activeClass
+                : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100"
+            )}
+          >
+            {t.dotClass && (
+              <span
+                className={cn(
+                  "inline-block w-1.5 h-1.5 rounded-full",
+                  active ? "bg-white/80" : t.dotClass
+                )}
+              />
+            )}
+            <span>{t.label}</span>
+            <span
+              className={cn(
+                "inline-flex items-center justify-center min-w-[20px] h-[16px] px-1 rounded-full text-[10px] font-semibold tabular-nums leading-none",
+                active
+                  ? "bg-white/20 text-white"
+                  : "bg-slate-100 text-slate-600"
+              )}
+            >
+              {t.count}
+            </span>
+          </button>
+        )
+      })}
     </div>
   )
 }

@@ -4,14 +4,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -37,7 +29,8 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { Copy, Edit2, Trash2, Search, MoreHorizontal, MessageSquare, Archive, ArrowRight, RotateCcw, Package, Ruler, Layers, Sofa, FileText, Hash, Calendar, X, Save, Pencil, Truck, CheckCircle, Inbox, Hourglass, AlertCircle, Play } from 'lucide-react'
+import { Copy, Edit2, Trash2, Search, MoreHorizontal, MessageSquare, Archive, ArrowRight, RotateCcw, Package, Ruler, Layers, Sofa, FileText, Hash, Calendar, X, Save, Pencil, Truck, CheckCircle, Inbox, Hourglass, AlertCircle, Play, ExternalLink, Link2 } from 'lucide-react'
+import { keepinCrmDealUrl } from '@/lib/keepincrm-web'
 import { startOfMonth, endOfMonth, format } from 'date-fns'
 import {
   Tooltip,
@@ -47,7 +40,7 @@ import {
 } from '@/components/ui/tooltip'
 import { updateKeepinCrmStage, getKeepinCrmDeal } from '@/app/actions'
 import { OrderTimelineModal } from './OrderTimelineModal'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -111,6 +104,7 @@ export function OrderList({ mode = 'status', status, dateFilterField }: OrderLis
   const [waitingDialog, setWaitingDialog] = useState<FabricOrder | null>(null)
   const [waitingReason, setWaitingReason] = useState('')
   const [waitingDays, setWaitingDays] = useState('7')
+  const [duplicatesDialog, setDuplicatesDialog] = useState<{ fabricName: string; orders: FabricOrder[] } | null>(null)
   const [dateFrom, setDateFrom] = useState<string>(() => dateFilterField ? todayMonthFrom() : '')
   const [dateTo, setDateTo] = useState<string>(() => dateFilterField ? todayMonthTo() : '')
   const [isEditing, setIsEditing] = useState(false)
@@ -340,6 +334,39 @@ export function OrderList({ mode = 'status', status, dateFilterField }: OrderLis
     toast.success('📋 Данные заказа скопированы')
   }
 
+  // Цветовая идентификация по воронке для левой полосы карточки — такая же логика,
+  // как на «Не разобранных»: эмеральд = Харизма (воронка 1), фиолет = MebelMarket
+  // (воронка 8), серый = ручные заказы без привязки к CRM.
+  const funnelStripe = (funnelId: number | null) => {
+    if (funnelId === 8) return 'before:bg-violet-500'
+    if (funnelId === 1) return 'before:bg-emerald-500'
+    return 'before:bg-slate-300'
+  }
+  const funnelHover = (funnelId: number | null) => {
+    if (funnelId === 8) return 'hover:bg-violet-50'
+    if (funnelId === 1) return 'hover:bg-emerald-50'
+    return 'hover:bg-slate-50'
+  }
+
+  const renderDuplicateBadge = (order: FabricOrder) => {
+    const group = duplicatesByOrderId.get(order.id)
+    if (!group || group.length < 2) return null
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          setDuplicatesDialog({ fabricName: order.fabricName, orders: group })
+        }}
+        className="shrink-0 inline-flex items-center gap-1 h-5 px-1.5 rounded-full bg-cyan-100 hover:bg-cyan-200 text-cyan-800 border border-cyan-300 text-[10px] font-bold uppercase tracking-wider transition-colors"
+        title={`${group.length} заказов на эту ткань — кликни чтобы свести в одну заявку поставщику`}
+      >
+        <Link2 className="w-3 h-3" />
+        ×{group.length}
+      </button>
+    )
+  }
+
   const getStatusBadge = (status: OrderStatus) => {
     const config = {
       PENDING: { label: 'Нужно заказать', color: 'bg-red-500 hover:bg-red-600' },
@@ -383,6 +410,31 @@ export function OrderList({ mode = 'status', status, dateFilterField }: OrderLis
       </TooltipProvider>
     )
   }
+
+  // Smart-детектор дубликатов: группируем PENDING-заказы по нормализованной ткани.
+  // Если в группе > 1 — все её заказы показывают бейдж с количеством, чтобы видно
+  // было что можно объединить заявку к поставщику. Считаем только для статуса
+  // PENDING — после ORDERED ткани уже едут, объединять поздно.
+  const duplicatesByOrderId = useMemo(() => {
+    const groups = new Map<string, FabricOrder[]>()
+    for (const o of orders) {
+      if (o.status !== 'PENDING') continue
+      if (o.waitingSince) continue
+      const key = o.fabricName.toLowerCase().trim().replace(/\s+/g, ' ').replace(/[.,;:!?]+$/, '')
+      if (!key) continue
+      const arr = groups.get(key) ?? []
+      arr.push(o)
+      groups.set(key, arr)
+    }
+    const result = new Map<string, FabricOrder[]>()
+    for (const group of groups.values()) {
+      if (group.length < 2) continue
+      for (const o of group) {
+        result.set(o.id, group)
+      }
+    }
+    return result
+  }, [orders])
 
   // Все заказы данной выборки (для счётчика «всего»).
   // Заказы в ожидании НЕ показываются на обычных страницах статусов —
@@ -587,239 +639,265 @@ export function OrderList({ mode = 'status', status, dateFilterField }: OrderLis
         <EmptyState mode={mode} status={status} hasSearch={searchQuery.length > 0} />
       ) : (
         <>
-          {/* Desktop Table View */}
-          <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden hidden md:block">
-            <Table>
-              <TableHeader className="bg-slate-50">
-                <TableRow>
-                  <TableHead>№ Заказа</TableHead>
-                  <TableHead>Ткань</TableHead>
-                  <TableHead>Метраж</TableHead>
-                  <TableHead>Модель</TableHead>
-                  <TableHead>Модули</TableHead>
-                  <TableHead>Статус</TableHead>
-                  <TableHead>Комментарий</TableHead>
-                  <TableHead className="text-right">Действия</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+          {/* Desktop card-list view (тот же стиль что на «Не разобранных») */}
+          <div className="hidden md:block">
+            <div className="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
+              <div className="grid grid-cols-[90px_minmax(0,1fr)_80px_160px_180px_140px_200px] gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                <div>№ Заказа</div>
+                <div>Ткань</div>
+                <div>Метраж</div>
+                <div>Модель</div>
+                <div>Модули</div>
+                <div>Статус</div>
+                <div className="text-right">Действия</div>
+              </div>
+            </div>
+            <div className="space-y-2 mt-2">
               <AnimatePresence mode="popLayout">
-              {filteredOrders.map((order) => (
-              <motion.tr
-              layout
-              key={order.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.2 }}
-              className={cn("hover:bg-slate-50 transition-colors border-b cursor-pointer", order.comment && "bg-amber-500/5")}
-              onClick={() => openOrder(order)}
-              >
-              <TableCell className="font-medium">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">{order.orderNumber}</span>                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleCopy(order) }} className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600">
-                          <Copy className="h-3.5 w-3.5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent><p>Скопировать заказ</p></TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-              </TableCell>
-              <TableCell>{order.fabricName}</TableCell>
-              <TableCell>{order.meters} м</TableCell>
-              <TableCell className="text-sm text-slate-700">
-                {order.model ? <span className="line-clamp-1 max-w-[160px]">{order.model}</span> : <span className="text-slate-300">—</span>}
-              </TableCell>
-              <TableCell className="text-sm text-slate-700">
-                {order.modules ? <span className="line-clamp-1 max-w-[200px]">{order.modules}</span> : <span className="text-slate-300">—</span>}
-              </TableCell>
-              <TableCell>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {getStatusBadge(order.status)}
-                  {getWaitingBadge(order)}
-                </div>
-              </TableCell>
-              <TableCell>
-                {order.comment ? (
-                   <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                     <span className="line-clamp-1 max-w-[150px]">{order.comment}</span>
-                     <span className="text-amber-600 text-xs font-medium">(есть)</span>
-                   </div>
-                ) : <span className="text-slate-400">Нет</span>}
-              </TableCell>
-              <TableCell>
-                <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                  {renderActions(order)}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild onPointerDown={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => openOrder(order, true)}><Pencil className="mr-2 h-4 w-4" />Редактировать</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => { setEditingComment(order); setCommentText(order.comment || '') }}><Edit2 className="mr-2 h-4 w-4" />Только комментарий</DropdownMenuItem>
-                      {order.status !== 'PENDING' && (
-                        <DropdownMenuItem onClick={() => setTimelineOrder(order)}>
-                          <Calendar className="mr-2 h-4 w-4" />История
-                        </DropdownMenuItem>
-                      )}
-                      {order.status !== 'ARCHIVED' && !order.waitingSince && (
-                        <DropdownMenuItem onClick={() => { setWaitingDialog(order); setWaitingReason(''); setWaitingDays('7') }}>
-                          <Hourglass className="mr-2 h-4 w-4" />В ожидание…
-                        </DropdownMenuItem>
-                      )}
-                      {order.waitingSince && (
-                        <>
-                          <DropdownMenuItem onClick={() => { setWaitingDialog(order); setWaitingReason(order.waitingReason || ''); setWaitingDays('7') }}>
-                            <Hourglass className="mr-2 h-4 w-4" />Продлить ожидание…
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => clearWaitingMutation.mutate(order.id)}>
-                            <Play className="mr-2 h-4 w-4" />Снять ожидание
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                      {order.status === 'PENDING' && order.crmId && (
-                        <DropdownMenuItem onClick={() => returnToUnsortedMutation.mutate(order.id)}>
-                          <Inbox className="mr-2 h-4 w-4" />Вернуть в «Не разобранные»
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem onClick={() => setDeleteCandidate(order)} className="text-red-600"><Trash2 className="mr-2 h-4 w-4" />Удалить</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </TableCell>
-              </motion.tr>
-              ))}
+                {filteredOrders.map((order) => (
+                  <motion.div
+                    layout
+                    key={order.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.97 }}
+                    transition={{ duration: 0.2 }}
+                    className={cn(
+                      "relative rounded-lg border bg-white shadow-md cursor-pointer transition-all overflow-hidden",
+                      "before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1.5 before:z-[1]",
+                      funnelStripe(order.funnelId),
+                      funnelHover(order.funnelId),
+                      "border-slate-200 hover:border-slate-300 hover:shadow-lg",
+                      order.comment && "ring-1 ring-amber-200"
+                    )}
+                    onClick={() => openOrder(order)}
+                  >
+                    <div className="grid grid-cols-[90px_minmax(0,1fr)_80px_160px_180px_140px_200px] gap-2 items-center pl-5 pr-4 py-3">
+                      <div className="flex items-center gap-1">
+                        <span className="font-semibold text-slate-900 tabular-nums">{order.orderNumber}</span>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => { e.stopPropagation(); handleCopy(order) }}
+                                className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600"
+                              >
+                                <Copy className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent><p>Скопировать заказ</p></TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                      <div className="min-w-0 flex items-center gap-1.5">
+                        <span className="line-clamp-1 text-sm font-medium text-slate-900">
+                          {order.fabricName}
+                        </span>
+                        {renderDuplicateBadge(order)}
+                      </div>
+                      <div className="text-sm text-slate-700 tabular-nums">{order.meters} м</div>
+                      <div className="text-sm text-slate-700 min-w-0">
+                        {order.model
+                          ? <span className="line-clamp-1">{order.model}</span>
+                          : <span className="text-slate-300">—</span>}
+                      </div>
+                      <div className="text-sm text-slate-700 min-w-0">
+                        {order.modules
+                          ? <span className="line-clamp-1">{order.modules}</span>
+                          : <span className="text-slate-300">—</span>}
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {getStatusBadge(order.status)}
+                        {getWaitingBadge(order)}
+                      </div>
+                      <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                        {renderActions(order)}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onPointerDown={(e) => e.stopPropagation()}>
+                            <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openOrder(order, true)}><Pencil className="mr-2 h-4 w-4" />Редактировать</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => { setEditingComment(order); setCommentText(order.comment || '') }}><Edit2 className="mr-2 h-4 w-4" />Только комментарий</DropdownMenuItem>
+                            {order.status !== 'PENDING' && (
+                              <DropdownMenuItem onClick={() => setTimelineOrder(order)}>
+                                <Calendar className="mr-2 h-4 w-4" />История
+                              </DropdownMenuItem>
+                            )}
+                            {order.status !== 'ARCHIVED' && !order.waitingSince && (
+                              <DropdownMenuItem onClick={() => { setWaitingDialog(order); setWaitingReason(''); setWaitingDays('7') }}>
+                                <Hourglass className="mr-2 h-4 w-4" />В ожидание…
+                              </DropdownMenuItem>
+                            )}
+                            {order.waitingSince && (
+                              <>
+                                <DropdownMenuItem onClick={() => { setWaitingDialog(order); setWaitingReason(order.waitingReason || ''); setWaitingDays('7') }}>
+                                  <Hourglass className="mr-2 h-4 w-4" />Продлить ожидание…
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => clearWaitingMutation.mutate(order.id)}>
+                                  <Play className="mr-2 h-4 w-4" />Снять ожидание
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                            {order.status === 'PENDING' && order.crmId && (
+                              <DropdownMenuItem onClick={() => returnToUnsortedMutation.mutate(order.id)}>
+                                <Inbox className="mr-2 h-4 w-4" />Вернуть в «Не разобранные»
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem onClick={() => setDeleteCandidate(order)} className="text-red-600"><Trash2 className="mr-2 h-4 w-4" />Удалить</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+
+                    {order.comment && (
+                      <div
+                        className="border-t border-amber-200 bg-amber-50 pl-5 pr-4 py-1.5 flex items-start gap-2"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <MessageSquare className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" />
+                        <p className="text-xs text-amber-900 leading-snug whitespace-pre-wrap line-clamp-2 italic">
+                          {order.comment}
+                        </p>
+                      </div>
+                    )}
+                  </motion.div>
+                ))}
               </AnimatePresence>
-              </TableBody>
-              </Table>
-              </div>
+            </div>
+          </div>
 
-              {/* Mobile Card View */}
-              <div className="grid grid-cols-1 gap-2 md:hidden">
-              <AnimatePresence mode="popLayout">
+          {/* Mobile Card View */}
+          <div className="grid grid-cols-1 gap-2.5 md:hidden">
+            <AnimatePresence mode="popLayout">
               {filteredOrders.map((order) => (
-              <motion.div
-              layout
-              key={order.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.2 }}
-              className="bg-white rounded-xl border border-slate-200 shadow-md hover:shadow-lg p-2 flex flex-col gap-1 hover:border-slate-300 transition-all cursor-pointer"
-              onClick={() => openOrder(order)}
-              >
-              {/* Шапка карточки */}
-              <div className="flex items-center justify-between gap-1">
-              <div className="flex items-center gap-1.5 overflow-hidden">
-              <span className="font-black text-base text-slate-900 leading-none shrink-0">
-                #{order.orderNumber}
-              </span>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleCopy(order) }} className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600 shrink-0">
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent><p>Скопировать заказ</p></TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              <div className="shrink-0 scale-90 origin-left flex items-center gap-1">
-                {getStatusBadge(order.status)}
-                {getWaitingBadge(order)}
-              </div>
-              </div>
+                <motion.div
+                  layout
+                  key={order.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.2 }}
+                  className={cn(
+                    "relative bg-white rounded-xl border shadow-md hover:shadow-lg p-2.5 pl-4 flex flex-col gap-1 transition-all cursor-pointer",
+                    "before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1.5 before:rounded-l-xl",
+                    funnelStripe(order.funnelId),
+                    "border-slate-200 hover:border-slate-300",
+                    order.comment && "ring-1 ring-amber-200"
+                  )}
+                  onClick={() => openOrder(order)}
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <div className="flex items-center gap-1.5 overflow-hidden">
+                      <span className="font-black text-base text-slate-900 leading-none shrink-0">
+                        #{order.orderNumber}
+                      </span>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleCopy(order) }} className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600 shrink-0">
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent><p>Скопировать заказ</p></TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <div className="shrink-0 scale-90 origin-left flex items-center gap-1">
+                        {getStatusBadge(order.status)}
+                        {getWaitingBadge(order)}
+                      </div>
+                    </div>
 
-              <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-              {renderActions(order)}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild onPointerDown={(e) => e.stopPropagation()}>
-                  <Button variant="ghost" className="h-6 w-6 p-0">
-                    <MoreHorizontal className="h-3.5 w-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => openOrder(order, true)}>
-                    <Pencil className="mr-2 h-4 w-4" />Редактировать
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setEditingComment(order); setCommentText(order.comment || '') }}>
-                    <Edit2 className="mr-2 h-4 w-4" />Только комментарий
-                  </DropdownMenuItem>
-                  {order.status !== 'PENDING' && (
-                    <DropdownMenuItem onClick={() => setTimelineOrder(order)}>
-                      <Calendar className="mr-2 h-4 w-4" />История
-                    </DropdownMenuItem>
-                  )}
-                  {order.status !== 'ARCHIVED' && !order.waitingSince && (
-                    <DropdownMenuItem onClick={() => { setWaitingDialog(order); setWaitingReason(''); setWaitingDays('7') }}>
-                      <Hourglass className="mr-2 h-4 w-4" />В ожидание…
-                    </DropdownMenuItem>
-                  )}
-                  {order.waitingSince && (
-                    <>
-                      <DropdownMenuItem onClick={() => { setWaitingDialog(order); setWaitingReason(order.waitingReason || ''); setWaitingDays('7') }}>
-                        <Hourglass className="mr-2 h-4 w-4" />Продлить ожидание…
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => clearWaitingMutation.mutate(order.id)}>
-                        <Play className="mr-2 h-4 w-4" />Снять ожидание
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                  {order.status === 'PENDING' && order.crmId && (
-                    <DropdownMenuItem onClick={() => returnToUnsortedMutation.mutate(order.id)}>
-                      <Inbox className="mr-2 h-4 w-4" />Вернуть в «Не разобранные»
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem onClick={() => setDeleteCandidate(order)} className="text-red-600">
-                    <Trash2 className="mr-2 h-4 w-4" />Удалить
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              </div>
-              </div>
+                    <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      {renderActions(order)}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild onPointerDown={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" className="h-6 w-6 p-0">
+                            <MoreHorizontal className="h-3.5 w-3.5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => openOrder(order, true)}>
+                            <Pencil className="mr-2 h-4 w-4" />Редактировать
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => { setEditingComment(order); setCommentText(order.comment || '') }}>
+                            <Edit2 className="mr-2 h-4 w-4" />Только комментарий
+                          </DropdownMenuItem>
+                          {order.status !== 'PENDING' && (
+                            <DropdownMenuItem onClick={() => setTimelineOrder(order)}>
+                              <Calendar className="mr-2 h-4 w-4" />История
+                            </DropdownMenuItem>
+                          )}
+                          {order.status !== 'ARCHIVED' && !order.waitingSince && (
+                            <DropdownMenuItem onClick={() => { setWaitingDialog(order); setWaitingReason(''); setWaitingDays('7') }}>
+                              <Hourglass className="mr-2 h-4 w-4" />В ожидание…
+                            </DropdownMenuItem>
+                          )}
+                          {order.waitingSince && (
+                            <>
+                              <DropdownMenuItem onClick={() => { setWaitingDialog(order); setWaitingReason(order.waitingReason || ''); setWaitingDays('7') }}>
+                                <Hourglass className="mr-2 h-4 w-4" />Продлить ожидание…
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => clearWaitingMutation.mutate(order.id)}>
+                                <Play className="mr-2 h-4 w-4" />Снять ожидание
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {order.status === 'PENDING' && order.crmId && (
+                            <DropdownMenuItem onClick={() => returnToUnsortedMutation.mutate(order.id)}>
+                              <Inbox className="mr-2 h-4 w-4" />Вернуть в «Не разобранные»
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem onClick={() => setDeleteCandidate(order)} className="text-red-600">
+                            <Trash2 className="mr-2 h-4 w-4" />Удалить
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
 
-              {/* Основная информация: Ткань и Метраж */}
-              <div className="transition-colors group px-1 py-0.5 rounded-md">              <h3 className="text-[15px] font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1 leading-tight">
-              {order.fabricName}
-              </h3>
-              <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
-              {order.meters} м
-              </p>
-              {(order.model || order.modules) && (
-                <div className="mt-1 space-y-0.5">
-                  {order.model && (
-                    <p className="text-[11px] text-slate-700 leading-tight">
-                      <span className="text-slate-400">Модель:</span> <span className="font-medium">{order.model}</span>
+                  <div className="px-1 py-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="text-[15px] font-bold text-slate-900 line-clamp-1 leading-tight">
+                        {order.fabricName}
+                      </h3>
+                      {renderDuplicateBadge(order)}
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
+                      {order.meters} м
                     </p>
-                  )}
-                  {order.modules && (
-                    <p className="text-[11px] text-slate-700 leading-tight">
-                      <span className="text-slate-400">Модули:</span> <span className="font-medium">{order.modules}</span>
-                    </p>
-                  )}
-                </div>
-              )}
-              </div>
+                    {(order.model || order.modules) && (
+                      <div className="mt-1 space-y-0.5">
+                        {order.model && (
+                          <p className="text-[11px] text-slate-700 leading-tight">
+                            <span className="text-slate-400">Модель:</span> <span className="font-medium">{order.model}</span>
+                          </p>
+                        )}
+                        {order.modules && (
+                          <p className="text-[11px] text-slate-700 leading-tight">
+                            <span className="text-slate-400">Модули:</span> <span className="font-medium">{order.modules}</span>
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
-              {/* Комментарий */}
-              {order.comment && (
-              <div className="bg-amber-50 border border-amber-100 rounded-md p-1.5 flex gap-1.5 items-start mt-0.5" onClick={(e) => e.stopPropagation()}>
-              <MessageSquare className="w-3 h-3 text-amber-600 mt-0.5 shrink-0" />
-              <p className="text-[11px] text-amber-900 leading-tight whitespace-pre-wrap line-clamp-2 italic">
-                {order.comment}
-              </p>
-              </div>
-              )}
-              </motion.div>
+                  {order.comment && (
+                    <div className="bg-amber-50 border border-amber-100 rounded-md p-1.5 flex gap-1.5 items-start mt-0.5" onClick={(e) => e.stopPropagation()}>
+                      <MessageSquare className="w-3 h-3 text-amber-600 mt-0.5 shrink-0" />
+                      <p className="text-[11px] text-amber-900 leading-tight whitespace-pre-wrap line-clamp-2 italic">
+                        {order.comment}
+                      </p>
+                    </div>
+                  )}
+                </motion.div>
               ))}
-              </AnimatePresence>
-              </div>
-              </>
-              )}
+            </AnimatePresence>
+          </div>
+        </>
+      )}
 
               <Dialog open={!!crmInfoOrder} onOpenChange={(open) => { if (!open) closeOrder() }}>
                 <DialogContent showCloseButton={false} className="sm:max-w-[560px] w-[95vw] p-0 overflow-hidden gap-0 bg-slate-100 border-slate-300 flex flex-col max-h-[90vh]">
@@ -946,9 +1024,16 @@ export function OrderList({ mode = 'status', status, dateFilterField }: OrderLis
                   {/* Footer */}
                   <DialogFooter className="shrink-0 px-4 sm:px-6 py-3 bg-slate-200 border-t border-slate-300 sm:justify-between sm:items-center gap-2">
                     {crmInfoOrder?.crmId ? (
-                      <span className="text-[10px] text-slate-400 uppercase tracking-widest font-mono">
-                        CRM ID · {crmInfoOrder.crmId}
-                      </span>
+                      <a
+                        href={keepinCrmDealUrl(crmInfoOrder.crmId)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium shadow-sm transition-colors"
+                        title={`Открыть сделку ${crmInfoOrder.crmId} в KeepinCRM`}
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        Открыть в CRM
+                      </a>
                     ) : <span />}
                     {isEditing ? (
                       <div className="flex gap-2">
@@ -1095,6 +1180,91 @@ export function OrderList({ mode = 'status', status, dateFilterField }: OrderLis
         onClose={() => setTimelineOrder(null)}
       />
 
+      <Dialog open={!!duplicatesDialog} onOpenChange={(o) => { if (!o) setDuplicatesDialog(null) }}>
+        <DialogContent className="sm:max-w-[540px] bg-slate-100 border-slate-300 p-0 overflow-hidden gap-0">
+          <DialogHeader className="px-5 pt-5 pb-3 border-b border-slate-200 bg-white">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <span className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-cyan-100 text-cyan-700 shrink-0">
+                <Link2 className="w-4 h-4" />
+              </span>
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">
+                  Дубликаты на одну ткань
+                </div>
+                <div className="text-base font-semibold text-slate-900 leading-tight truncate">
+                  {duplicatesDialog?.fabricName}
+                </div>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="px-5 py-4 max-h-[60vh] overflow-y-auto space-y-2">
+            {duplicatesDialog?.orders.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => {
+                  setDuplicatesDialog(null)
+                  openOrder(o)
+                }}
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border bg-white shadow-sm transition-all text-left",
+                  "hover:border-slate-300 hover:shadow-md",
+                  "relative before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:rounded-l-lg",
+                  o.funnelId === 8
+                    ? "before:bg-violet-500"
+                    : o.funnelId === 1
+                      ? "before:bg-emerald-500"
+                      : "before:bg-slate-300"
+                )}
+              >
+                <span className="font-semibold text-slate-900 tabular-nums shrink-0 pl-1.5">
+                  #{o.orderNumber}
+                </span>
+                <span className="text-sm text-slate-700 tabular-nums shrink-0">
+                  {o.meters} м
+                </span>
+                {o.model && (
+                  <span className="text-xs text-slate-500 truncate min-w-0">
+                    {o.model}
+                  </span>
+                )}
+                {o.crmId && (
+                  <a
+                    href={keepinCrmDealUrl(o.crmId)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="ml-auto inline-flex items-center gap-1 h-7 px-2 rounded-md border border-blue-300 bg-blue-50 hover:bg-blue-600 hover:text-white hover:border-blue-600 text-blue-700 text-xs font-medium shrink-0 transition-colors"
+                    title={`Открыть сделку ${o.crmId} в KeepinCRM`}
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    CRM
+                  </a>
+                )}
+              </button>
+            ))}
+          </div>
+          <div className="px-5 py-3 border-t border-slate-300 bg-slate-200 flex items-center justify-between gap-3">
+            <div className="text-sm text-slate-700">
+              <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mr-2">Всего</span>
+              <span className="font-bold text-slate-900 tabular-nums">
+                {(duplicatesDialog?.orders ?? []).reduce((sum, o) => sum + (Number(o.meters) || 0), 0)} м
+              </span>
+              <span className="text-slate-500 text-xs ml-2">
+                · {duplicatesDialog?.orders.length} заказов
+              </span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDuplicatesDialog(null)}
+            >
+              Закрыть
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={!!deleteCandidate} onOpenChange={(open) => { if (!open) setDeleteCandidate(null) }}>
         <AlertDialogContent className="bg-slate-100 border-slate-300">
           <AlertDialogHeader>
@@ -1163,41 +1333,43 @@ function OrdersSkeleton() {
   return (
     <>
       {/* Desktop */}
-      <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden hidden md:block">
-        <Table>
-          <TableHeader className="bg-slate-50">
-            <TableRow>
-              <TableHead>№ Заказа</TableHead>
-              <TableHead>Ткань</TableHead>
-              <TableHead>Метраж</TableHead>
-              <TableHead>Модель</TableHead>
-              <TableHead>Модули</TableHead>
-              <TableHead>Статус</TableHead>
-              <TableHead>Комментарий</TableHead>
-              <TableHead className="text-right">Действия</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {[0, 1, 2, 3, 4].map((i) => (
-              <TableRow key={i}>
-                <TableCell><Skeleton className="h-4 w-12" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-12" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-28" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-36" /></TableCell>
-                <TableCell><Skeleton className="h-5 w-20 rounded-full" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                <TableCell><Skeleton className="h-7 w-24 ml-auto" /></TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+      <div className="hidden md:block">
+        <div className="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
+          <div className="grid grid-cols-[90px_minmax(0,1fr)_80px_160px_180px_140px_200px] gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <div>№ Заказа</div>
+            <div>Ткань</div>
+            <div>Метраж</div>
+            <div>Модель</div>
+            <div>Модули</div>
+            <div>Статус</div>
+            <div className="text-right">Действия</div>
+          </div>
+        </div>
+        <div className="space-y-2 mt-2">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="relative grid grid-cols-[90px_minmax(0,1fr)_80px_160px_180px_140px_200px] gap-2 items-center pl-5 pr-4 py-3 rounded-lg border border-slate-200 bg-white shadow-md before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1.5 before:rounded-l-lg before:bg-slate-200"
+            >
+              <Skeleton className="h-4 w-12" />
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-4 w-12" />
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-4 w-36" />
+              <Skeleton className="h-5 w-20 rounded-full" />
+              <Skeleton className="h-7 w-24 ml-auto" />
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Mobile */}
-      <div className="grid grid-cols-1 gap-2 md:hidden">
+      <div className="grid grid-cols-1 gap-2.5 md:hidden">
         {[0, 1, 2].map((i) => (
-          <div key={i} className="bg-white rounded-xl border border-slate-200 shadow-md p-3 space-y-2">
+          <div
+            key={i}
+            className="relative bg-white rounded-xl border border-slate-200 shadow-md p-2.5 pl-4 space-y-2 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1.5 before:rounded-l-xl before:bg-slate-200"
+          >
             <div className="flex items-center justify-between">
               <Skeleton className="h-5 w-24" />
               <Skeleton className="h-5 w-20 rounded-full" />
