@@ -10,9 +10,9 @@ export const maxDuration = 300;
  */
 export async function GET() {
   try {
-    const fetched = await fetchUnsortedDeals({ stopAtCrmId: 0 });
+    const { active, archivedCrmIds } = await fetchUnsortedDeals({ stopAtCrmId: 0 });
 
-    const crmIds = fetched.map((d) => d.crmId);
+    const crmIds = active.map((d) => d.crmId);
     const fabricMatched = await db.fabricOrder.findMany({
       where: { crmId: { in: crmIds } },
       select: { crmId: true, status: true },
@@ -34,39 +34,40 @@ export async function GET() {
       where: { processedAt: null, dismissedAt: null },
     });
 
-    const breakdown = {
-      inFabricByStatus: {} as Record<string, number>,
-    };
-    for (const s of fabricByCrmId.values()) {
-      breakdown.inFabricByStatus[s] = (breakdown.inFabricByStatus[s] || 0) + 1;
-    }
-
-    const wouldImport = fetched.filter(
+    const wouldImport = active.filter(
       (d) =>
         !fabricByCrmId.has(d.crmId) &&
         !processedSet.has(d.crmId) &&
         !dismissedSet.has(d.crmId)
     );
 
+    const breakdownByStatus: Record<string, number> = {};
+    for (const s of fabricByCrmId.values()) {
+      breakdownByStatus[s] = (breakdownByStatus[s] || 0) + 1;
+    }
+
     return NextResponse.json({
       targetFunnels: KEEPINCRM_TARGET_FUNNEL_IDS,
-      crmActiveInTargetFunnels: fetched.length,
+      crmActiveInTargetFunnels: active.length,
+      crmArchivedInTargetFunnels: archivedCrmIds.length,
       alreadyInFabricOrder: fabricByCrmId.size,
-      breakdown,
+      breakdownByStatus,
       alreadyProcessedInUnsorted: processedSet.size,
       alreadyDismissedInUnsorted: dismissedSet.size,
       unsortedActiveNow: unsortedActive,
       wouldImportOnFullSync: wouldImport.length,
       samples: {
-        firstFromCrm: fetched.slice(0, 3).map((d) => ({
+        firstFromCrm: active.slice(0, 3).map((d) => ({
           crmId: d.crmId,
           title: d.crmTitle,
           funnelId: d.funnelId,
+          stageName: d.stageName,
         })),
         firstWouldImport: wouldImport.slice(0, 3).map((d) => ({
           crmId: d.crmId,
           title: d.crmTitle,
           funnelId: d.funnelId,
+          stageName: d.stageName,
         })),
       },
     });

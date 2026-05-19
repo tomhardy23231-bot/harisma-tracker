@@ -14,6 +14,21 @@ export async function POST(req: Request) {
   try {
     const data = await req.json();
     const record = await db.fabricOrder.create({ data });
+
+    // Если этот заказ соответствует сделке из «Не разобранных» — помечаем
+    // её processedAt, чтобы она пропала со страницы и не вернулась при следующем
+    // импорте. Это закрывает кейс ручного добавления через crmId из формы.
+    if (typeof record.crmId === "number") {
+      await db.unsortedDeal.updateMany({
+        where: {
+          crmId: record.crmId,
+          processedAt: null,
+          dismissedAt: null,
+        },
+        data: { processedAt: new Date() },
+      });
+    }
+
     return Response.json(record);
   } catch (error) {
     console.error("Error creating order:", JSON.stringify(error, null, 2));

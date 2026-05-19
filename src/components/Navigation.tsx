@@ -4,10 +4,10 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
-import { Package, Truck, CheckCircle, Archive, BarChart3, Inbox } from 'lucide-react'
+import { Package, Truck, CheckCircle, Archive, BarChart3, Inbox, Hourglass } from 'lucide-react'
 import type { OrderStatus } from './OrderList'
 
-interface FabricOrderLite { status: OrderStatus }
+interface FabricOrderLite { status: OrderStatus; waitingSince: string | null }
 
 interface NavItem {
   href: string
@@ -15,7 +15,7 @@ interface NavItem {
   shortLabel: string
   icon: typeof Package
   status?: OrderStatus
-  countKey?: 'UNSORTED'
+  countKey?: 'UNSORTED' | 'WAITING'
 }
 
 const navItems: NavItem[] = [
@@ -23,6 +23,7 @@ const navItems: NavItem[] = [
   { href: '/', label: 'Нужно заказать', shortLabel: 'Заказать', icon: Package, status: 'PENDING' },
   { href: '/ordered', label: 'Заказано', shortLabel: 'Заказано', icon: Truck, status: 'ORDERED' },
   { href: '/arrived', label: 'На складе', shortLabel: 'Склад', icon: CheckCircle, status: 'ARRIVED' },
+  { href: '/waiting', label: 'В ожидании', shortLabel: 'Ожидание', icon: Hourglass, countKey: 'WAITING' },
   { href: '/archive', label: 'Архив', shortLabel: 'Архив', icon: Archive, status: 'ARCHIVED' },
   { href: '/dashboard', label: 'Аналитика', shortLabel: 'Аналитика', icon: BarChart3 },
 ]
@@ -55,6 +56,7 @@ export function Navigation() {
     return acc
   }, {})
   const unsortedCount = unsorted.length
+  const waitingCount = orders.filter((o) => o.waitingSince && o.status !== 'ARCHIVED').length
 
   return (
     <>
@@ -65,7 +67,9 @@ export function Navigation() {
           const isActive = pathname === item.href
           const count = item.countKey === 'UNSORTED'
             ? unsortedCount
-            : item.status ? counts[item.status] ?? 0 : null
+            : item.countKey === 'WAITING'
+              ? waitingCount
+              : item.status ? counts[item.status] ?? 0 : null
 
           return (
             <Link

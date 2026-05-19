@@ -55,10 +55,18 @@ model FabricOrder {
   orderedAt   DateTime?
   arrivedAt   DateTime?
   archivedAt  DateTime?
+  // «Ожидание» — флаг, параллельный статусу. Если waitingSince != null,
+  // заказ считается в ожидании. Причина — почему он ждёт (например «нет ткани»).
+  // waitingUntil — до какой даты ожидание считается «не просроченным».
+  // Продление сдвигает waitingUntil вперёд.
+  waitingReason String?
+  waitingSince  DateTime?
+  waitingUntil  DateTime?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
   @@index([crmId])
+  @@index([waitingSince])
 }
 
 /// Сырые сделки из KeepinCRM (воронки 1 и 8), которые ещё не превратили в FabricOrder.

@@ -2,6 +2,17 @@ const KEEPINCRM_API_URL = "https://api.keepincrm.com/v1";
 const TARGET_FUNNEL_IDS = [1, 8] as const;
 export const KEEPINCRM_TARGET_FUNNEL_IDS = TARGET_FUNNEL_IDS;
 
+/**
+ * Архивная сделка KeepinCRM = поле `result` ≠ null
+ * (significant values: "archived" | "successful" | "failed").
+ * API `GET /agreements` БЕЗ q[result_eq] возвращает И активные, И архивные —
+ * мы фильтруем сами и поднимаем список архивных, чтобы убрать из UnsortedDeal
+ * те, что были импортированы раньше и потом отправлены в архив CRM.
+ */
+function isArchivedDeal(deal: any): boolean {
+  return deal?.result !== null && deal?.result !== undefined;
+}
+
 function getApiKey(): string {
   const key = process.env.KEEPINCRM_API_KEY;
   if (!key) throw new Error("Missing KEEPINCRM_API_KEY environment variable");
@@ -184,62 +195,125 @@ export interface ImportedDeal extends NormalizedDeal {
   raw: any;
 }
 
+export interface FetchUnsortedResult {
+  /** Активные (result=null) сделки целевых воронок — кандидаты на импорт. */
+  active: ImportedDeal[];
+  /** crmId сделок в наших воронках, у которых result != null (архивные в CRM). */
+  archivedCrmIds: number[];
+  /** Был ли полный обход (true) или прерван по stopAtCrmId (false). */
+  fullScan: boolean;
+}
+
+async function fetchAgreementsPage(page: number, apiKey: string): Promise<any> {
+  const res = await fetch(`${KEEPINCRM_API_URL}/agreements?page=${page}`, {
+    headers: { "X-Auth-Token": apiKey },
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch agreements page ${page}: ${res.status}`);
+  }
+  return res.json();
+}
+
 /**
  * Итеративно тянет активные (result=null) сделки из KeepinCRM и
  * возвращает только те, что входят в целевые воронки.
  *
- * stopAtCrmId — если задан, останавливаемся как только увидим сделку
- * с crmId <= stopAtCrmId (инкрементальный синк, новые сделки сверху).
+ * Стратегия: сначала тянем страницу 1 чтобы узнать totalPages,
+ * затем остальные страницы параллельно пачками по `concurrency` штук.
+ * Это в N раз быстрее, чем sequential.
  *
- * maxPages — страховка от бесконечного цикла (по умолчанию без лимита).
+ * stopAtCrmId — инкрементальный режим: страницы тянутся пока не появится
+ * страница, где минимальный crmId <= stopAtCrmId. Тогда мы понимаем,
+ * что дошли до уже импортированного, и обрываем (не отправляем дальше).
+ * Когда stopAtCrmId = 0 (force-режим), тянем все страницы.
  */
 export async function fetchUnsortedDeals(opts: {
   stopAtCrmId?: number;
   maxPages?: number;
+  concurrency?: number;
   onProgress?: (p: ImportProgress) => void;
-} = {}): Promise<ImportedDeal[]> {
+} = {}): Promise<FetchUnsortedResult> {
   const apiKey = getApiKey();
-  const { stopAtCrmId = 0, maxPages = Infinity, onProgress } = opts;
-  const matched: ImportedDeal[] = [];
+  const { stopAtCrmId = 0, maxPages = Infinity, concurrency = 6, onProgress } = opts;
 
-  let page = 1;
-  let totalPages = 1;
-  let totalCount = 0;
+  // 1. Первый запрос — узнаём totalPages и сразу разбираем page 1.
+  const first = await fetchAgreementsPage(1, apiKey);
+  const totalPages = Math.min(first?.pagination?.total_pages ?? 1, maxPages);
+  const totalCount = first?.pagination?.total_count ?? 0;
 
-  while (page <= totalPages && page <= maxPages) {
-    const res = await fetch(`${KEEPINCRM_API_URL}/agreements?page=${page}`, {
-      headers: { "X-Auth-Token": apiKey },
-    });
-    if (!res.ok) {
-      throw new Error(`Failed to fetch agreements page ${page}: ${res.status}`);
+  const byPage = new Map<number, any[]>();
+  byPage.set(1, Array.isArray(first?.items) ? first.items : []);
+
+  // 2. Остальные страницы параллельно батчами.
+  // Если включён инкрементальный режим — обрываемся когда увидим страницу
+  // с минимальным id <= stopAtCrmId (значит дальше всё уже импортировано).
+  let stopReached = false;
+  let pageCursor = 2;
+
+  while (pageCursor <= totalPages && !stopReached) {
+    const batch: number[] = [];
+    for (let i = 0; i < concurrency && pageCursor + i <= totalPages; i++) {
+      batch.push(pageCursor + i);
     }
-    const data: any = await res.json();
-    totalPages = data?.pagination?.total_pages ?? totalPages;
-    totalCount = data?.pagination?.total_count ?? totalCount;
+    pageCursor += batch.length;
 
-    const items: any[] = Array.isArray(data?.items) ? data.items : [];
-    let reachedStop = false;
+    const results = await Promise.all(batch.map((p) => fetchAgreementsPage(p, apiKey)));
+    for (let i = 0; i < results.length; i++) {
+      const pageNum = batch[i];
+      const items: any[] = Array.isArray(results[i]?.items) ? results[i].items : [];
+      byPage.set(pageNum, items);
 
-    for (const item of items) {
-      if (stopAtCrmId && typeof item.id === "number" && item.id <= stopAtCrmId) {
-        reachedStop = true;
-        break;
+      if (stopAtCrmId > 0) {
+        // Считаем минимальный id на странице — если он <= stopAtCrmId,
+        // на этой странице уже есть импортированные. Дальше не идём.
+        const minId = items.reduce(
+          (m, it) => (typeof it.id === "number" ? Math.min(m, it.id) : m),
+          Number.POSITIVE_INFINITY
+        );
+        if (minId <= stopAtCrmId) stopReached = true;
       }
-      const n = normalizeDeal(item);
-      if (!TARGET_FUNNEL_IDS.includes(n.funnelId as 1 | 8)) continue;
-      matched.push({ ...n, raw: item });
     }
 
     onProgress?.({
-      pagesFetched: page,
+      pagesFetched: byPage.size,
       totalPages,
       totalCount,
-      matchedTargetFunnels: matched.length,
+      matchedTargetFunnels: 0,
     });
-
-    if (reachedStop) break;
-    page += 1;
   }
 
-  return matched;
+  // 3. Склейка + фильтр.
+  // Разделяем сделки целевых воронок на:
+  //   active        — result === null, идут на импорт
+  //   archivedCrmIds — result !== null, нужны чтобы убрать из БД, если когда-то
+  //                    были импортированы и потом ушли в архив CRM
+  const active: ImportedDeal[] = [];
+  const archivedCrmIds: number[] = [];
+  const sortedPages = [...byPage.keys()].sort((a, b) => a - b);
+  for (const p of sortedPages) {
+    const items = byPage.get(p) ?? [];
+    for (const item of items) {
+      if (stopAtCrmId > 0 && typeof item.id === "number" && item.id <= stopAtCrmId) continue;
+      const n = normalizeDeal(item);
+      if (!TARGET_FUNNEL_IDS.includes(n.funnelId as 1 | 8)) continue;
+      if (isArchivedDeal(item)) {
+        archivedCrmIds.push(n.crmId);
+      } else {
+        active.push({ ...n, raw: item });
+      }
+    }
+  }
+
+  onProgress?.({
+    pagesFetched: byPage.size,
+    totalPages,
+    totalCount,
+    matchedTargetFunnels: active.length,
+  });
+
+  return {
+    active,
+    archivedCrmIds,
+    fullScan: !stopReached && byPage.size >= totalPages,
+  };
 }

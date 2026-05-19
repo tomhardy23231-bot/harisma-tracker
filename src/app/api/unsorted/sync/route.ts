@@ -5,13 +5,15 @@ import { fetchUnsortedDeals } from "@/lib/keepincrm";
 export const maxDuration = 300;
 
 /**
- * Запускает импорт активных сделок KeepinCRM (воронки 1 и 8) в таблицу UnsortedDeal.
+ * Bulk-импорт активных сделок KeepinCRM (воронки 1 и 8) в UnsortedDeal.
  *
- * Инкрементальный режим: берём max(crmId) среди уже импортированных в UnsortedDeal
- * И среди FabricOrder, и тянем только сделки с id больше этого максимума.
- *
- * Сделки, уже находящиеся в FabricOrder, пропускаются (уже в работе).
- * Сделки, помеченные processedAt/dismissedAt в UnsortedDeal — НЕ переоткрываются.
+ * Алгоритм:
+ *  1. Параллельно тянем все страницы CRM (см. fetchUnsortedDeals).
+ *     Получаем active (result=null) и archivedCrmIds (result!=null).
+ *  2. Удаляем из UnsortedDeal те, что в CRM теперь архивные
+ *     (если у нас они ещё не processed/dismissed).
+ *  3. Bulk createMany для новых активных.
+ *  4. Bulk update для уже существующих активных (свежие title/comment/etc).
  */
 export async function POST(req: Request) {
   try {
@@ -30,38 +32,57 @@ export async function POST(req: Request) {
       );
     }
 
-    const fetched = await fetchUnsortedDeals({ stopAtCrmId });
+    const { active: fetched, archivedCrmIds } = await fetchUnsortedDeals({ stopAtCrmId });
 
-    // crmId, уже находящиеся в FabricOrder — не дублируем как unsorted.
+    // Чистим в БД те, что в CRM теперь архивные. Не трогаем processed/dismissed —
+    // там пользователь уже принял решение.
+    let cleanedArchived = 0;
+    if (archivedCrmIds.length > 0) {
+      const r = await db.unsortedDeal.deleteMany({
+        where: {
+          crmId: { in: archivedCrmIds },
+          processedAt: null,
+          dismissedAt: null,
+        },
+      });
+      cleanedArchived = r.count;
+    }
+
+    if (fetched.length === 0) {
+      return NextResponse.json({
+        fetchedFromCrm: 0,
+        imported: 0,
+        updated: 0,
+        skippedInFabric: 0,
+        skippedDecided: 0,
+        cleanedArchived,
+        archivedSeenInCrm: archivedCrmIds.length,
+        stopAtCrmId,
+        mode: force ? "full" : "incremental",
+      });
+    }
+
+    const allCrmIds = fetched.map((d) => d.crmId);
+
+    // Bulk: какие из них уже в FabricOrder.
+    const fabricMatched = await db.fabricOrder.findMany({
+      where: { crmId: { in: allCrmIds } },
+      select: { crmId: true },
+    });
     const fabricCrmIds = new Set(
-      (
-        await db.fabricOrder.findMany({
-          where: { crmId: { in: fetched.map((d) => d.crmId) } },
-          select: { crmId: true },
-        })
-      )
-        .map((r) => r.crmId)
-        .filter((v): v is number => v !== null && v !== undefined)
+      fabricMatched.map((r) => r.crmId).filter((v): v is number => v != null)
     );
 
-    // crmId, уже отмеченные processedAt/dismissedAt — не воскрешаем.
-    const decidedCrmIds = new Set(
-      (
-        await db.unsortedDeal.findMany({
-          where: {
-            crmId: { in: fetched.map((d) => d.crmId) },
-            OR: [
-              { processedAt: { not: null } },
-              { dismissedAt: { not: null } },
-            ],
-          },
-          select: { crmId: true },
-        })
-      ).map((r) => r.crmId)
-    );
+    // Bulk: какие из них уже в UnsortedDeal (с пометками или без).
+    const existingUnsorted = await db.unsortedDeal.findMany({
+      where: { crmId: { in: allCrmIds } },
+      select: { crmId: true, processedAt: true, dismissedAt: true },
+    });
+    const existingByCrmId = new Map(existingUnsorted.map((e) => [e.crmId, e]));
 
-    let imported = 0;
-    let updated = 0;
+    // Разделяем: skip / новые / обновляемые.
+    const toCreate: typeof fetched = [];
+    const toUpdate: typeof fetched = [];
     let skippedInFabric = 0;
     let skippedDecided = 0;
 
@@ -70,55 +91,68 @@ export async function POST(req: Request) {
         skippedInFabric += 1;
         continue;
       }
-      if (decidedCrmIds.has(deal.crmId)) {
+      const existing = existingByCrmId.get(deal.crmId);
+      if (existing && (existing.processedAt || existing.dismissedAt)) {
         skippedDecided += 1;
         continue;
       }
+      if (existing) toUpdate.push(deal);
+      else toCreate.push(deal);
+    }
 
-      const existing = await db.unsortedDeal.findUnique({
-        where: { crmId: deal.crmId },
-        select: { id: true },
+    if (toCreate.length > 0) {
+      await db.unsortedDeal.createMany({
+        data: toCreate.map((d) => ({
+          crmId: d.crmId,
+          crmTitle: d.crmTitle,
+          crmComment: d.crmComment,
+          funnelId: d.funnelId,
+          funnelTitle: d.funnelTitle,
+          stageId: d.stageId,
+          stageName: d.stageName,
+          fabric: d.fabric,
+          model: d.model,
+          modules: d.modules,
+          orderNumber: d.orderNumber || null,
+        })),
+        skipDuplicates: true,
       });
+    }
 
-      await db.unsortedDeal.upsert({
-        where: { crmId: deal.crmId },
-        create: {
-          crmId: deal.crmId,
-          crmTitle: deal.crmTitle,
-          crmComment: deal.crmComment,
-          funnelId: deal.funnelId,
-          funnelTitle: deal.funnelTitle,
-          stageId: deal.stageId,
-          stageName: deal.stageName,
-          fabric: deal.fabric,
-          model: deal.model,
-          modules: deal.modules,
-          orderNumber: deal.orderNumber || null,
-        },
-        update: {
-          crmTitle: deal.crmTitle,
-          crmComment: deal.crmComment,
-          funnelId: deal.funnelId,
-          funnelTitle: deal.funnelTitle,
-          stageId: deal.stageId,
-          stageName: deal.stageName,
-          fabric: deal.fabric,
-          model: deal.model,
-          modules: deal.modules,
-          orderNumber: deal.orderNumber || null,
-        },
-      });
-
-      if (existing) updated += 1;
-      else imported += 1;
+    if (toUpdate.length > 0) {
+      const BATCH = 20;
+      for (let i = 0; i < toUpdate.length; i += BATCH) {
+        const slice = toUpdate.slice(i, i + BATCH);
+        await Promise.all(
+          slice.map((d) =>
+            db.unsortedDeal.update({
+              where: { crmId: d.crmId },
+              data: {
+                crmTitle: d.crmTitle,
+                crmComment: d.crmComment,
+                funnelId: d.funnelId,
+                funnelTitle: d.funnelTitle,
+                stageId: d.stageId,
+                stageName: d.stageName,
+                fabric: d.fabric,
+                model: d.model,
+                modules: d.modules,
+                orderNumber: d.orderNumber || null,
+              },
+            })
+          )
+        );
+      }
     }
 
     return NextResponse.json({
       fetchedFromCrm: fetched.length,
-      imported,
-      updated,
+      imported: toCreate.length,
+      updated: toUpdate.length,
       skippedInFabric,
       skippedDecided,
+      cleanedArchived,
+      archivedSeenInCrm: archivedCrmIds.length,
       stopAtCrmId,
       mode: force ? "full" : "incremental",
     });

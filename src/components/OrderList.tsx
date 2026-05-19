@@ -37,7 +37,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { Copy, Edit2, Trash2, Search, MoreHorizontal, MessageSquare, Archive, ArrowRight, RotateCcw, Package, Ruler, Layers, Sofa, FileText, Hash, Calendar, X, Save, Pencil, Truck, CheckCircle } from 'lucide-react'
+import { Copy, Edit2, Trash2, Search, MoreHorizontal, MessageSquare, Archive, ArrowRight, RotateCcw, Package, Ruler, Layers, Sofa, FileText, Hash, Calendar, X, Save, Pencil, Truck, CheckCircle, Inbox, Hourglass, AlertCircle, Play } from 'lucide-react'
 import { startOfMonth, endOfMonth, format } from 'date-fns'
 import {
   Tooltip,
@@ -70,27 +70,47 @@ export interface FabricOrder {
   orderedAt: string | null
   arrivedAt: string | null
   archivedAt: string | null
+  waitingReason: string | null
+  waitingSince: string | null
+  waitingUntil: string | null
   createdAt: string
   updatedAt: string
 }
 
+export function isWaitingOverdue(o: Pick<FabricOrder, 'waitingSince' | 'waitingUntil'>): boolean {
+  if (!o.waitingSince || !o.waitingUntil) return false
+  return new Date(o.waitingUntil).getTime() < Date.now()
+}
+
+export function waitingDaysElapsed(o: Pick<FabricOrder, 'waitingSince'>): number {
+  if (!o.waitingSince) return 0
+  return Math.floor((Date.now() - new Date(o.waitingSince).getTime()) / (24 * 60 * 60 * 1000))
+}
+
 type DateFilterField = 'archivedAt' | 'arrivedAt' | 'orderedAt' | 'createdAt'
 
+type OrderListMode = 'status' | 'waiting'
+
 interface OrderListProps {
-  status: OrderStatus
+  mode?: OrderListMode
+  status?: OrderStatus
   dateFilterField?: DateFilterField
 }
 
 const todayMonthFrom = () => format(startOfMonth(new Date()), 'yyyy-MM-dd')
 const todayMonthTo = () => format(endOfMonth(new Date()), 'yyyy-MM-dd')
 
-export function OrderList({ status, dateFilterField }: OrderListProps) {
+export function OrderList({ mode = 'status', status, dateFilterField }: OrderListProps) {
+  const isWaitingMode = mode === 'waiting'
   const [searchQuery, setSearchQuery] = useState('')
   const [editingComment, setEditingComment] = useState<FabricOrder | null>(null)
   const [commentText, setCommentText] = useState('')
   const [timelineOrder, setTimelineOrder] = useState<FabricOrder | null>(null)
   const [crmInfoOrder, setCrmInfoOrder] = useState<FabricOrder | null>(null)
   const [deleteCandidate, setDeleteCandidate] = useState<FabricOrder | null>(null)
+  const [waitingDialog, setWaitingDialog] = useState<FabricOrder | null>(null)
+  const [waitingReason, setWaitingReason] = useState('')
+  const [waitingDays, setWaitingDays] = useState('7')
   const [dateFrom, setDateFrom] = useState<string>(() => dateFilterField ? todayMonthFrom() : '')
   const [dateTo, setDateTo] = useState<string>(() => dateFilterField ? todayMonthTo() : '')
   const [isEditing, setIsEditing] = useState(false)
@@ -199,6 +219,61 @@ export function OrderList({ status, dateFilterField }: OrderListProps) {
     }
   })
 
+  const setWaitingMutation = useMutation({
+    mutationFn: async ({ orderId, reason, days }: { orderId: string; reason: string; days: number }) => {
+      const r = await fetch(`/api/fabric-orders/${orderId}/wait`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason, days }),
+      })
+      if (!r.ok) {
+        const data = await r.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to set waiting')
+      }
+      return r.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fabric-orders'] })
+      setWaitingDialog(null)
+      setWaitingReason('')
+      setWaitingDays('7')
+      toast.success('⏳ Заказ в ожидании')
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  const clearWaitingMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      const r = await fetch(`/api/fabric-orders/${orderId}/wait`, { method: 'DELETE' })
+      if (!r.ok) throw new Error('Failed to clear waiting')
+      return r.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fabric-orders'] })
+      toast.success('▶️ Ожидание снято')
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  const returnToUnsortedMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      const response = await fetch(`/api/fabric-orders/${orderId}/return-to-unsorted`, { method: 'POST' })
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to return')
+      }
+      return response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fabric-orders'] })
+      queryClient.invalidateQueries({ queryKey: ['unsorted-deals'] })
+      toast.success('↩️ Заказ возвращён в «Не разобранные»')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Не удалось вернуть в «Не разобранные»')
+    }
+  })
+
   const editOrderMutation = useMutation({
     mutationFn: async () => {
       if (!crmInfoOrder) throw new Error('No order')
@@ -276,8 +351,43 @@ export function OrderList({ status, dateFilterField }: OrderListProps) {
     return <Badge className={color}>{label}</Badge>
   }
 
-  // Все заказы данного статуса (для счётчика «всего»)
-  const totalForStatus = orders.filter((o) => o.status === status).length
+  const getWaitingBadge = (order: FabricOrder) => {
+    if (!order.waitingSince) return null
+    const overdue = isWaitingOverdue(order)
+    const days = waitingDaysElapsed(order)
+    const tone = overdue
+      ? 'bg-rose-100 text-rose-700 border border-rose-300'
+      : 'bg-amber-100 text-amber-800 border border-amber-300'
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className={cn(
+              "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider",
+              tone
+            )}>
+              {overdue ? <AlertCircle className="w-3 h-3" /> : <Hourglass className="w-3 h-3" />}
+              {days}д
+            </span>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-[260px]">
+            <p className="font-semibold">{overdue ? 'Просрочено' : 'В ожидании'} ({days} дн)</p>
+            {order.waitingReason && <p className="text-xs mt-1 opacity-80">{order.waitingReason}</p>}
+            {order.waitingUntil && (
+              <p className="text-[10px] mt-1 opacity-60">
+                до {format(new Date(order.waitingUntil), 'dd.MM.yyyy')}
+              </p>
+            )}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
+
+  // Все заказы данной выборки (для счётчика «всего»)
+  const totalForStatus = isWaitingMode
+    ? orders.filter((o) => o.waitingSince && o.status !== 'ARCHIVED').length
+    : orders.filter((o) => o.status === status).length
 
   // Smart Search Logic
   const filteredOrders = orders
@@ -288,11 +398,18 @@ export function OrderList({ status, dateFilterField }: OrderListProps) {
         return (
           order.orderNumber.toLowerCase().includes(search) ||
           order.fabricName.toLowerCase().includes(search) ||
-          (order.comment && order.comment.toLowerCase().includes(search))
+          (order.comment && order.comment.toLowerCase().includes(search)) ||
+          (order.waitingReason && order.waitingReason.toLowerCase().includes(search))
         )
       }
 
-      if (order.status !== status) return false
+      if (isWaitingMode) {
+        // Только заказы в ожидании, кроме архивных
+        if (!order.waitingSince) return false
+        if (order.status === 'ARCHIVED') return false
+      } else {
+        if (order.status !== status) return false
+      }
 
       // Фильтр по дате — только если задано поле и есть границы
       if (dateFilterField) {
@@ -311,7 +428,13 @@ export function OrderList({ status, dateFilterField }: OrderListProps) {
 
       return true
     })
-    .sort((a, b) => parseInt(a.orderNumber) - parseInt(b.orderNumber))
+    .sort((a, b) => {
+      // В режиме ожидания — сортируем по дате попадания в ожидание (старые сверху).
+      if (isWaitingMode && a.waitingSince && b.waitingSince) {
+        return new Date(a.waitingSince).getTime() - new Date(b.waitingSince).getTime()
+      }
+      return parseInt(a.orderNumber) - parseInt(b.orderNumber)
+    })
 
   const resetDateFilter = () => {
     setDateFrom(todayMonthFrom())
@@ -385,7 +508,8 @@ export function OrderList({ status, dateFilterField }: OrderListProps) {
 
   const getPageTitle = () => {
     if (searchQuery.length > 0) return 'Результаты поиска'
-    
+    if (isWaitingMode) return 'В ожидании'
+
     switch(status) {
       case 'PENDING': return 'Нужно заказать'
       case 'ORDERED': return 'Заказано'
@@ -459,7 +583,7 @@ export function OrderList({ status, dateFilterField }: OrderListProps) {
       {isLoading ? (
         <OrdersSkeleton />
       ) : filteredOrders.length === 0 ? (
-        <EmptyState status={status} hasSearch={searchQuery.length > 0} />
+        <EmptyState mode={mode} status={status} hasSearch={searchQuery.length > 0} />
       ) : (
         <>
           {/* Desktop Table View */}
@@ -512,7 +636,12 @@ export function OrderList({ status, dateFilterField }: OrderListProps) {
               <TableCell className="text-sm text-slate-700">
                 {order.modules ? <span className="line-clamp-1 max-w-[200px]">{order.modules}</span> : <span className="text-slate-300">—</span>}
               </TableCell>
-              <TableCell>{getStatusBadge(order.status)}</TableCell>
+              <TableCell>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {getStatusBadge(order.status)}
+                  {getWaitingBadge(order)}
+                </div>
+              </TableCell>
               <TableCell>
                 {order.comment ? (
                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -531,6 +660,26 @@ export function OrderList({ status, dateFilterField }: OrderListProps) {
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => openOrder(order, true)}><Pencil className="mr-2 h-4 w-4" />Редактировать</DropdownMenuItem>
                       <DropdownMenuItem onClick={() => { setEditingComment(order); setCommentText(order.comment || '') }}><Edit2 className="mr-2 h-4 w-4" />Только комментарий</DropdownMenuItem>
+                      {order.status !== 'ARCHIVED' && !order.waitingSince && (
+                        <DropdownMenuItem onClick={() => { setWaitingDialog(order); setWaitingReason(''); setWaitingDays('7') }}>
+                          <Hourglass className="mr-2 h-4 w-4" />В ожидание…
+                        </DropdownMenuItem>
+                      )}
+                      {order.waitingSince && (
+                        <>
+                          <DropdownMenuItem onClick={() => { setWaitingDialog(order); setWaitingReason(order.waitingReason || ''); setWaitingDays('7') }}>
+                            <Hourglass className="mr-2 h-4 w-4" />Продлить ожидание…
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => clearWaitingMutation.mutate(order.id)}>
+                            <Play className="mr-2 h-4 w-4" />Снять ожидание
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                      {order.status === 'PENDING' && order.crmId && (
+                        <DropdownMenuItem onClick={() => returnToUnsortedMutation.mutate(order.id)}>
+                          <Inbox className="mr-2 h-4 w-4" />Вернуть в «Не разобранные»
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem onClick={() => setDeleteCandidate(order)} className="text-red-600"><Trash2 className="mr-2 h-4 w-4" />Удалить</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -573,8 +722,9 @@ export function OrderList({ status, dateFilterField }: OrderListProps) {
                   <TooltipContent><p>Скопировать заказ</p></TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-              <div className="shrink-0 scale-90 origin-left">
+              <div className="shrink-0 scale-90 origin-left flex items-center gap-1">
                 {getStatusBadge(order.status)}
+                {getWaitingBadge(order)}
               </div>
               </div>
 
@@ -593,6 +743,26 @@ export function OrderList({ status, dateFilterField }: OrderListProps) {
                   <DropdownMenuItem onClick={() => { setEditingComment(order); setCommentText(order.comment || '') }}>
                     <Edit2 className="mr-2 h-4 w-4" />Только комментарий
                   </DropdownMenuItem>
+                  {order.status !== 'ARCHIVED' && !order.waitingSince && (
+                    <DropdownMenuItem onClick={() => { setWaitingDialog(order); setWaitingReason(''); setWaitingDays('7') }}>
+                      <Hourglass className="mr-2 h-4 w-4" />В ожидание…
+                    </DropdownMenuItem>
+                  )}
+                  {order.waitingSince && (
+                    <>
+                      <DropdownMenuItem onClick={() => { setWaitingDialog(order); setWaitingReason(order.waitingReason || ''); setWaitingDays('7') }}>
+                        <Hourglass className="mr-2 h-4 w-4" />Продлить ожидание…
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => clearWaitingMutation.mutate(order.id)}>
+                        <Play className="mr-2 h-4 w-4" />Снять ожидание
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  {order.status === 'PENDING' && order.crmId && (
+                    <DropdownMenuItem onClick={() => returnToUnsortedMutation.mutate(order.id)}>
+                      <Inbox className="mr-2 h-4 w-4" />Вернуть в «Не разобранные»
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem onClick={() => setDeleteCandidate(order)} className="text-red-600">
                     <Trash2 className="mr-2 h-4 w-4" />Удалить
                   </DropdownMenuItem>
@@ -807,6 +977,85 @@ export function OrderList({ status, dateFilterField }: OrderListProps) {
                 </DialogContent>
               </Dialog>
 
+      <Dialog open={!!waitingDialog} onOpenChange={(o) => { if (!o) setWaitingDialog(null) }}>
+        <DialogContent className="sm:max-w-[440px] bg-slate-100 border-slate-300">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-amber-100 text-amber-700">
+                <Hourglass className="w-4 h-4" />
+              </span>
+              {waitingDialog?.waitingSince ? 'Продлить ожидание' : 'Поставить в ожидание'}
+              {waitingDialog && (
+                <span className="text-sm font-normal text-slate-500 ml-1">
+                  #{waitingDialog.orderNumber}
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2 space-y-3">
+            <div className="space-y-1">
+              <label className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">
+                Причина
+              </label>
+              <Textarea
+                value={waitingReason}
+                onChange={(e) => setWaitingReason(e.target.value)}
+                placeholder="Например: нет ткани у поставщика"
+                rows={2}
+                className="bg-white"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">
+                {waitingDialog?.waitingSince ? 'Продлить на' : 'Срок'} (дней)
+              </label>
+              <div className="flex gap-2">
+                {[3, 7, 14, 30].map((d) => (
+                  <Button
+                    key={d}
+                    type="button"
+                    size="sm"
+                    variant={waitingDays === String(d) ? 'default' : 'outline'}
+                    onClick={() => setWaitingDays(String(d))}
+                    className={cn("h-8 px-3", waitingDays === String(d) && "bg-slate-800")}
+                  >
+                    {d}
+                  </Button>
+                ))}
+                <Input
+                  type="number"
+                  min="1"
+                  value={waitingDays}
+                  onChange={(e) => setWaitingDays(e.target.value)}
+                  className="h-8 w-20 bg-white"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWaitingDialog(null)} disabled={setWaitingMutation.isPending}>
+              Отмена
+            </Button>
+            <Button
+              onClick={() => {
+                if (!waitingDialog) return
+                const days = parseInt(waitingDays, 10)
+                if (!waitingReason.trim() || !(days > 0)) {
+                  toast.error('Заполните причину и срок (> 0)')
+                  return
+                }
+                setWaitingMutation.mutate({ orderId: waitingDialog.id, reason: waitingReason.trim(), days })
+              }}
+              disabled={setWaitingMutation.isPending}
+              className="bg-amber-600 hover:bg-amber-700 gap-1.5"
+            >
+              <Hourglass className="w-4 h-4" />
+              {setWaitingMutation.isPending ? 'Сохраняю…' : (waitingDialog?.waitingSince ? 'Продлить' : 'В ожидание')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!editingComment} onOpenChange={() => setEditingComment(null)}>
         <DialogContent className="sm:max-w-[425px] bg-slate-100 border-slate-300">
           <DialogHeader>
@@ -951,11 +1200,12 @@ function OrdersSkeleton() {
 }
 
 interface EmptyStateProps {
-  status: OrderStatus
+  mode?: OrderListMode
+  status?: OrderStatus
   hasSearch: boolean
 }
 
-function EmptyState({ status, hasSearch }: EmptyStateProps) {
+function EmptyState({ mode = 'status', status, hasSearch }: EmptyStateProps) {
   const config: Record<OrderStatus, { icon: typeof Package; title: string; subtitle: string; tone: string }> = {
     PENDING: {
       icon: Package,
@@ -982,7 +1232,15 @@ function EmptyState({ status, hasSearch }: EmptyStateProps) {
       tone: 'text-slate-500 bg-slate-100',
     },
   }
-  const c = config[status]
+
+  const waitingConfig = {
+    icon: Hourglass,
+    title: 'В ожидании ничего нет',
+    subtitle: 'Сюда попадают заказы, поставленные в ожидание через ⋮ → «В ожидание…»',
+    tone: 'text-amber-600 bg-amber-50',
+  }
+
+  const c = mode === 'waiting' ? waitingConfig : (status ? config[status] : waitingConfig)
   const Icon = hasSearch ? Search : c.icon
 
   return (
