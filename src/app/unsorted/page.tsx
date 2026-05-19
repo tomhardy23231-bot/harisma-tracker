@@ -606,16 +606,37 @@ export default function UnsortedDealsPage() {
                 CRM ID · {opened.crmId}
               </span>
             ) : <span />}
-            <div className="flex gap-2 flex-wrap justify-end">
+            <div className="flex gap-2 flex-wrap justify-end items-center">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-slate-400 hover:text-slate-700"
+                    disabled={promoteMutation.isPending || saveMutation.isPending}
+                    aria-label="Дополнительно"
+                  >
+                    <MoreHorizontal className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    className="text-slate-700"
+                    onClick={() => { if (opened) setDismissCandidate(opened) }}
+                  >
+                    <EyeOff className="mr-2 h-4 w-4" />
+                    Скрыть навсегда
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => { if (opened) setDismissCandidate(opened) }}
+                onClick={() => setOpened(null)}
                 disabled={promoteMutation.isPending || saveMutation.isPending}
                 className="gap-1.5"
               >
-                <EyeOff className="w-3.5 h-3.5" />
-                Скрыть
+                Закрыть
               </Button>
               {hasUnsavedChanges && (
                 <Button
