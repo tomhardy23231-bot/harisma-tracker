@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { NextRequest } from "next/server";
 import { OrderStatus } from "@prisma/client";
+import { updateKeepinCrmFields, type CrmFieldUpdate } from "@/lib/keepincrm";
 
 interface UpdatePayload {
   status?: OrderStatus;
@@ -53,10 +54,47 @@ export async function PATCH(
       );
     }
 
+    // Берём текущую запись, чтобы понять, какие поля реально изменились.
+    const before = await db.fabricOrder.findUnique({ where: { id } });
+    if (!before) {
+      return new Response(
+        JSON.stringify({ message: "Order not found" }),
+        { status: 404 }
+      );
+    }
+
     const record = await db.fabricOrder.update({
       where: { id },
       data: updateData,
     });
+
+    // Двусторонний синк: если заказ связан с CRM и реально изменились поля,
+    // которые имеют смысл в CRM — пушим изменения туда.
+    // Делаем "best effort": ошибка CRM не должна валить локальный апдейт.
+    if (before.crmId) {
+      const crmUpdate: CrmFieldUpdate = {};
+      if (updateData.crmComment !== undefined && updateData.crmComment !== before.crmComment) {
+        crmUpdate.comment = updateData.crmComment;
+      }
+      if (updateData.fabricName !== undefined && updateData.fabricName !== before.fabricName) {
+        crmUpdate.fabric = updateData.fabricName;
+      }
+      if (updateData.model !== undefined && updateData.model !== before.model) {
+        crmUpdate.model = updateData.model;
+      }
+      if (updateData.modules !== undefined && updateData.modules !== before.modules) {
+        crmUpdate.modules = updateData.modules;
+      }
+
+      if (Object.keys(crmUpdate).length > 0) {
+        try {
+          await updateKeepinCrmFields(before.crmId, crmUpdate);
+        } catch (err) {
+          console.error("CRM sync failed (non-fatal):", err);
+        }
+      }
+    }
+
     return Response.json(record);
   } catch (error) {
     console.error("Error updating order:", JSON.stringify(error, null, 2));

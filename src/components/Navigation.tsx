@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
-import { Package, Truck, CheckCircle, Archive, BarChart3 } from 'lucide-react'
+import { Package, Truck, CheckCircle, Archive, BarChart3, Inbox } from 'lucide-react'
 import type { OrderStatus } from './OrderList'
 
 interface FabricOrderLite { status: OrderStatus }
@@ -15,9 +15,11 @@ interface NavItem {
   shortLabel: string
   icon: typeof Package
   status?: OrderStatus
+  countKey?: 'UNSORTED'
 }
 
 const navItems: NavItem[] = [
+  { href: '/unsorted', label: 'Не разобранные', shortLabel: 'Импорт', icon: Inbox, countKey: 'UNSORTED' },
   { href: '/', label: 'Нужно заказать', shortLabel: 'Заказать', icon: Package, status: 'PENDING' },
   { href: '/ordered', label: 'Заказано', shortLabel: 'Заказано', icon: Truck, status: 'ORDERED' },
   { href: '/arrived', label: 'На складе', shortLabel: 'Склад', icon: CheckCircle, status: 'ARRIVED' },
@@ -38,10 +40,21 @@ export function Navigation() {
     refetchOnWindowFocus: false,
   })
 
+  const { data: unsorted = [] } = useQuery<Array<{ id: string }>>({
+    queryKey: ['unsorted-deals'],
+    queryFn: async () => {
+      const response = await fetch('/api/unsorted')
+      if (!response.ok) return []
+      return response.json()
+    },
+    refetchOnWindowFocus: false,
+  })
+
   const counts = orders.reduce<Record<string, number>>((acc, o) => {
     acc[o.status] = (acc[o.status] || 0) + 1
     return acc
   }, {})
+  const unsortedCount = unsorted.length
 
   return (
     <>
@@ -50,7 +63,9 @@ export function Navigation() {
         {navItems.map((item) => {
           const Icon = item.icon
           const isActive = pathname === item.href
-          const count = item.status ? counts[item.status] ?? 0 : null
+          const count = item.countKey === 'UNSORTED'
+            ? unsortedCount
+            : item.status ? counts[item.status] ?? 0 : null
 
           return (
             <Link
@@ -91,7 +106,9 @@ export function Navigation() {
           {navItems.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href
-            const count = item.status ? counts[item.status] ?? 0 : null
+            const count = item.countKey === 'UNSORTED'
+              ? unsortedCount
+              : item.status ? counts[item.status] ?? 0 : null
 
             return (
               <Link

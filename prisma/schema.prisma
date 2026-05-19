@@ -57,4 +57,32 @@ model FabricOrder {
   archivedAt  DateTime?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+
+  @@index([crmId])
+}
+
+/// Сырые сделки из KeepinCRM (воронки 1 и 8), которые ещё не превратили в FabricOrder.
+/// processedAt — пользователь перенёс в "Нужно заказать" (создан FabricOrder).
+/// dismissedAt — пользователь вручную скрыл (мусорная карточка, не превращать).
+/// Обе пометки исключают сделку из выдачи и из повторного импорта.
+model UnsortedDeal {
+  id           String    @id @default(cuid())
+  crmId        Int       @unique
+  crmTitle     String
+  crmComment   String?
+  funnelId     Int
+  funnelTitle  String?
+  stageId      Int?
+  stageName    String?
+  fabric       String?
+  model        String?
+  modules      String?
+  orderNumber  String?
+  processedAt  DateTime?
+  dismissedAt  DateTime?
+  importedAt   DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([processedAt, dismissedAt])
+  @@index([crmId])
 }
