@@ -181,15 +181,18 @@ export async function updateKeepinCrmFields(crmId: number, update: CrmFieldUpdat
     body.comment = update.comment ?? "";
   }
 
+  // ВАЖНО: имена кастомных полей в CRM пишутся ТАК ЖЕ как заведены в настройках
+  // KeepinCRM. У нас они в верхнем регистре — «МОДЕЛЬ» / «МОДУЛИ». При несовпадении
+  // регистра CRM молча игнорит апдейт (поле не находится — апдейт без ошибки).
   const customFields: Array<{ name: string; value: string }> = [];
   if (update.fabric !== undefined) {
     customFields.push({ name: "Ткань", value: update.fabric ?? "" });
   }
   if (update.model !== undefined) {
-    customFields.push({ name: "Модель", value: update.model ?? "" });
+    customFields.push({ name: "МОДЕЛЬ", value: update.model ?? "" });
   }
   if (update.modules !== undefined) {
-    customFields.push({ name: "Модули", value: update.modules ?? "" });
+    customFields.push({ name: "МОДУЛИ", value: update.modules ?? "" });
   }
   if (customFields.length > 0) {
     body.custom_fields = customFields;
