@@ -453,9 +453,13 @@ export function OrderList({ mode = 'status', status, dateFilterField }: OrderLis
   }
 
   const renderActions = (order: FabricOrder) => {
+    // На странице «В ожидании» не показываем кнопки движения по статусам —
+    // заказ парк-нут, действия с ним только «Продлить» / «Снять» (через ⋮).
+    if (isWaitingMode) return null
+
     // Actions based on individual order status for global search consistency
     const currentStatus = order.status
-    
+
     if (currentStatus === 'PENDING') {
       return (
         <Button size="sm" variant="outline" onClick={() => statusMutation.mutate({ orderId: order.id, newStatus: 'ORDERED' })} className="h-8 gap-1">
