@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const CHANGELOG_VERSION = '2026-05-19-v1'
+const CHANGELOG_VERSION = '2026-05-19-v2'
 const STORAGE_KEY = 'harisma-changelog-seen'
 
 type Change = {
@@ -131,7 +131,7 @@ export function WhatsNewModal() {
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose() }}>
       <DialogContent
         showCloseButton={false}
-        className="p-0 gap-0 overflow-hidden bg-slate-100 border-slate-300 max-w-full w-full h-[100dvh] sm:h-auto sm:max-h-[90vh] sm:max-w-3xl rounded-none sm:rounded-2xl"
+        className="p-0 gap-0 overflow-hidden bg-slate-100 border-slate-300 max-w-full w-full h-[100dvh] sm:h-auto sm:max-h-[90vh] sm:max-w-3xl rounded-none sm:rounded-2xl flex flex-col"
       >
         <DialogHeader className="px-6 py-6 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 text-white border-b border-slate-700 shrink-0">
           <div className="flex items-center gap-3">
@@ -152,7 +152,7 @@ export function WhatsNewModal() {
           </div>
         </DialogHeader>
 
-        <div className="overflow-y-auto p-4 sm:p-6 space-y-3">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-3">
           {changes.map((c, i) => {
             const Icon = c.icon
             return (
