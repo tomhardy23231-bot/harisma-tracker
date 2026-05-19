@@ -467,41 +467,31 @@ export function OrderList({ mode = 'status', status, dateFilterField }: OrderLis
     }
     if (currentStatus === 'ARRIVED') {
       return (
-        <div className="flex gap-2">
-           <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button size="sm" variant="outline" onClick={() => statusMutation.mutate({ orderId: order.id, newStatus: 'ARCHIVED' })} className="h-8 w-8 p-0">
-                  <Archive className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent><p>В архив</p></TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <Button size="sm" variant="ghost" onClick={() => setTimelineOrder(order)} className="h-8 text-xs underline decoration-dotted">
-            История
-          </Button>
-        </div>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="sm" variant="outline" onClick={() => statusMutation.mutate({ orderId: order.id, newStatus: 'ARCHIVED' })} className="h-8 w-8 p-0">
+                <Archive className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent><p>В архив</p></TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       )
     }
     if (currentStatus === 'ARCHIVED') {
-        return (
-          <div className="flex gap-2">
-            <TooltipProvider>
-                <Tooltip>
-                <TooltipTrigger asChild>
-                    <Button size="sm" variant="outline" onClick={() => statusMutation.mutate({ orderId: order.id, newStatus: 'ARRIVED' })} className="h-8 w-8 p-0">
-                    <RotateCcw className="w-4 h-4" />
-                    </Button>
-                </TooltipTrigger>
-                <TooltipContent><p>Вернуть на склад</p></TooltipContent>
-                </Tooltip>
-            </TooltipProvider>
-            <Button size="sm" variant="ghost" onClick={() => setTimelineOrder(order)} className="h-8 text-xs underline decoration-dotted">
-                История
-            </Button>
-          </div>
-        )
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="sm" variant="outline" onClick={() => statusMutation.mutate({ orderId: order.id, newStatus: 'ARRIVED' })} className="h-8 w-8 p-0">
+                <RotateCcw className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent><p>Вернуть на склад</p></TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )
     }
     return null
   }
@@ -660,6 +650,11 @@ export function OrderList({ mode = 'status', status, dateFilterField }: OrderLis
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => openOrder(order, true)}><Pencil className="mr-2 h-4 w-4" />Редактировать</DropdownMenuItem>
                       <DropdownMenuItem onClick={() => { setEditingComment(order); setCommentText(order.comment || '') }}><Edit2 className="mr-2 h-4 w-4" />Только комментарий</DropdownMenuItem>
+                      {order.status !== 'PENDING' && (
+                        <DropdownMenuItem onClick={() => setTimelineOrder(order)}>
+                          <Calendar className="mr-2 h-4 w-4" />История
+                        </DropdownMenuItem>
+                      )}
                       {order.status !== 'ARCHIVED' && !order.waitingSince && (
                         <DropdownMenuItem onClick={() => { setWaitingDialog(order); setWaitingReason(''); setWaitingDays('7') }}>
                           <Hourglass className="mr-2 h-4 w-4" />В ожидание…
@@ -743,6 +738,11 @@ export function OrderList({ mode = 'status', status, dateFilterField }: OrderLis
                   <DropdownMenuItem onClick={() => { setEditingComment(order); setCommentText(order.comment || '') }}>
                     <Edit2 className="mr-2 h-4 w-4" />Только комментарий
                   </DropdownMenuItem>
+                  {order.status !== 'PENDING' && (
+                    <DropdownMenuItem onClick={() => setTimelineOrder(order)}>
+                      <Calendar className="mr-2 h-4 w-4" />История
+                    </DropdownMenuItem>
+                  )}
                   {order.status !== 'ARCHIVED' && !order.waitingSince && (
                     <DropdownMenuItem onClick={() => { setWaitingDialog(order); setWaitingReason(''); setWaitingDays('7') }}>
                       <Hourglass className="mr-2 h-4 w-4" />В ожидание…
@@ -811,9 +811,9 @@ export function OrderList({ mode = 'status', status, dateFilterField }: OrderLis
               )}
 
               <Dialog open={!!crmInfoOrder} onOpenChange={(open) => { if (!open) closeOrder() }}>
-                <DialogContent showCloseButton={false} className="sm:max-w-[560px] p-0 overflow-hidden gap-0 bg-slate-100 border-slate-300">
+                <DialogContent showCloseButton={false} className="sm:max-w-[560px] w-[95vw] p-0 overflow-hidden gap-0 bg-slate-100 border-slate-300 flex flex-col max-h-[90vh]">
                   {/* Header */}
-                  <DialogHeader className="px-6 pt-5 pb-4 border-b border-slate-200 bg-white">
+                  <DialogHeader className="px-4 sm:px-6 pt-5 pb-4 border-b border-slate-200 bg-white shrink-0">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1 space-y-1">
                         <DialogTitle className="flex items-center gap-2.5 text-base">
@@ -835,17 +835,18 @@ export function OrderList({ mode = 'status', status, dateFilterField }: OrderLis
                           variant="outline"
                           size="sm"
                           onClick={() => setIsEditing(true)}
-                          className="shrink-0 h-8 gap-1.5"
+                          className="shrink-0 h-8 w-8 p-0 sm:w-auto sm:px-3 sm:gap-1.5"
+                          aria-label="Редактировать"
                         >
                           <Pencil className="w-3.5 h-3.5" />
-                          Редактировать
+                          <span className="hidden sm:inline">Редактировать</span>
                         </Button>
                       )}
                     </div>
                   </DialogHeader>
 
                   {/* Body */}
-                  <div className="px-6 py-5 space-y-5 max-h-[65vh] overflow-y-auto">
+                  <div className="flex-1 min-h-0 px-4 sm:px-6 py-5 space-y-5 overflow-y-auto">
                     {/* Параметры заказа */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {isEditing ? (
@@ -932,7 +933,7 @@ export function OrderList({ mode = 'status', status, dateFilterField }: OrderLis
                   </div>
 
                   {/* Footer */}
-                  <DialogFooter className="px-6 py-3 bg-slate-200 border-t border-slate-300 sm:justify-between sm:items-center gap-2">
+                  <DialogFooter className="shrink-0 px-4 sm:px-6 py-3 bg-slate-200 border-t border-slate-300 sm:justify-between sm:items-center gap-2">
                     {crmInfoOrder?.crmId ? (
                       <span className="text-[10px] text-slate-400 uppercase tracking-widest font-mono">
                         CRM ID · {crmInfoOrder.crmId}
