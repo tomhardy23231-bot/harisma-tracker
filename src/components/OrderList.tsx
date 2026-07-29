@@ -93,8 +93,40 @@ interface OrderListProps {
 const todayMonthFrom = () => format(startOfMonth(new Date()), 'yyyy-MM-dd')
 const todayMonthTo = () => format(endOfMonth(new Date()), 'yyyy-MM-dd')
 
+/**
+ * Возврат на предыдущий этап. Живёт только в меню ⋮ — движение вперёд это
+ * кнопка на карточке, движение назад прячем, чтобы его не нажимали случайно.
+ * У PENDING предыдущего этапа нет: назад из него — «Вернуть в «Не разобранные»»
+ * (отдельный пункт ниже, он не меняет статус, а удаляет заказ).
+ */
+const PREV_STAGE: Partial<Record<OrderStatus, { status: OrderStatus; label: string }>> = {
+  ORDERED: { status: 'PENDING', label: 'Вернуть в «Нужно заказать»' },
+  ARRIVED: { status: 'ORDERED', label: 'Вернуть в «Заказано»' },
+  ARCHIVED: { status: 'ARRIVED', label: 'Вернуть на склад' },
+}
+
+/**
+ * Кнопка-иконка в строке действий («В архив»).
+ *
+ * На мобильном по ней тяжело попасть пальцем, поэтому кнопка увеличена 32 → 36px,
+ * НО без изменения габаритов карточки: высоту строки действий задаёт как раз
+ * эта кнопка (остальное в строке ниже — копи-кнопка 24px, бейдж ~20px), и
+ * `-my-0.5` съедает добавленные 4px обратно. Итого margin-box остаётся 32px,
+ * строка и карточка не растут, кнопка просто на 2px выступает в паддинг сверху
+ * и снизу. На десктопе (md+) всё возвращается к прежним 32px.
+ *
+ * Иконке нужен именно класс `size-N`, а не пара `w-N` + `h-N`: в базовых стилях
+ * Button стоит правило `[&_svg:not([class*='size-'])]:size-4`, которое иначе
+ * перебьёт размер обратно на 16px.
+ */
+const ICON_ACTION_BTN = "h-9 w-9 -my-0.5 md:h-8 md:w-8 md:my-0 p-0"
+const ICON_ACTION_ICON = "size-5 md:size-4"
+
 export function OrderList({ mode = 'status', status, dateFilterField }: OrderListProps) {
   const isWaitingMode = mode === 'waiting'
+  // Архив — отдельный контур поиска: он ищет только по себе, а все остальные
+  // страницы ищут только по неархивным заказам (см. фильтр ниже).
+  const isArchiveMode = !isWaitingMode && status === 'ARCHIVED'
   const [searchQuery, setSearchQuery] = useState('')
   const [editingComment, setEditingComment] = useState<FabricOrder | null>(null)
   const [commentText, setCommentText] = useState('')
@@ -188,9 +220,14 @@ export function OrderList({ mode = 'status', status, dateFilterField }: OrderLis
         ARCHIVED: 'Архив'
       }
       
-      const icon = newStatus === 'ORDERED' ? '📦' : newStatus === 'ARRIVED' ? '✅' : newStatus === 'ARCHIVED' ? '🗄️' : '🔄'
-      
-      toast(`${icon} Заказ #${order?.orderNumber} (${order?.fabricName}) успешно перемещен в '${statusLabels[newStatus]}'`)
+      // Возврат назад подсвечиваем отдельно — чтобы по тосту было сразу видно,
+      // что заказ откатили, а не продвинули.
+      const isBack = !!order && PREV_STAGE[order.status]?.status === newStatus
+      const icon = isBack
+        ? '↩️'
+        : newStatus === 'ORDERED' ? '📦' : newStatus === 'ARRIVED' ? '✅' : newStatus === 'ARCHIVED' ? '🗄️' : '🔄'
+
+      toast(`${icon} Заказ #${order?.orderNumber} (${order?.fabricName}) ${isBack ? 'возвращён в' : 'успешно перемещен в'} '${statusLabels[newStatus]}'`)
     },
     onError: (error) => {
       console.error('Error updating status:', error)
@@ -447,15 +484,21 @@ export function OrderList({ mode = 'status', status, dateFilterField }: OrderLis
   // Smart Search Logic
   const filteredOrders = orders
     .filter((order) => {
-      // Глобальный поиск — игнорирует статус и фильтр дат
+      // Поиск сквозной по страницам (игнорирует статус и фильтр дат), но с
+      // жёсткой границей вокруг архива:
+      //   страница «Архив»  → ищем ТОЛЬКО среди архивных
+      //   остальные страницы → ищем ТОЛЬКО среди неархивных
+      // Иначе закрытые полгода назад заказы подмешивались бы в выдачу по
+      // текущей работе (и наоборот).
       if (searchQuery.length > 0) {
         const search = searchQuery.toLowerCase()
-        return (
+        const matches =
           order.orderNumber.toLowerCase().includes(search) ||
           order.fabricName.toLowerCase().includes(search) ||
-          (order.comment && order.comment.toLowerCase().includes(search)) ||
-          (order.waitingReason && order.waitingReason.toLowerCase().includes(search))
-        )
+          !!order.comment?.toLowerCase().includes(search) ||
+          !!order.waitingReason?.toLowerCase().includes(search)
+        if (!matches) return false
+        return isArchiveMode ? order.status === 'ARCHIVED' : order.status !== 'ARCHIVED'
       }
 
       if (isWaitingMode) {
@@ -533,8 +576,8 @@ export function OrderList({ mode = 'status', status, dateFilterField }: OrderLis
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button size="sm" variant="outline" onClick={() => statusMutation.mutate({ orderId: order.id, newStatus: 'ARCHIVED' })} className="h-8 w-8 p-0">
-                <Archive className="w-4 h-4" />
+              <Button size="sm" variant="outline" onClick={() => statusMutation.mutate({ orderId: order.id, newStatus: 'ARCHIVED' })} className={ICON_ACTION_BTN}>
+                <Archive className={ICON_ACTION_ICON} />
               </Button>
             </TooltipTrigger>
             <TooltipContent><p>В архив</p></TooltipContent>
@@ -542,25 +585,24 @@ export function OrderList({ mode = 'status', status, dateFilterField }: OrderLis
         </TooltipProvider>
       )
     }
-    if (currentStatus === 'ARCHIVED') {
-      return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button size="sm" variant="outline" onClick={() => statusMutation.mutate({ orderId: order.id, newStatus: 'ARRIVED' })} className="h-8 w-8 p-0">
-                <RotateCcw className="w-4 h-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent><p>Вернуть на склад</p></TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )
-    }
+    // ARCHIVED — вперёд идти некуда. Возврат на склад лежит в меню ⋮ (PREV_STAGE).
     return null
   }
 
+  // Пункт «вернуть на предыдущий этап» — один на оба меню, десктопное и мобильное.
+  const renderPrevStageItem = (order: FabricOrder) => {
+    const prev = PREV_STAGE[order.status]
+    if (!prev) return null
+    return (
+      <DropdownMenuItem onClick={() => statusMutation.mutate({ orderId: order.id, newStatus: prev.status })}>
+        <RotateCcw className="mr-2 h-4 w-4" />
+        {prev.label}
+      </DropdownMenuItem>
+    )
+  }
+
   const getPageTitle = () => {
-    if (searchQuery.length > 0) return 'Результаты поиска'
+    if (searchQuery.length > 0) return isArchiveMode ? 'Поиск по архиву' : 'Результаты поиска'
     if (isWaitingMode) return 'В ожидании'
 
     switch(status) {
@@ -591,7 +633,7 @@ export function OrderList({ mode = 'status', status, dateFilterField }: OrderLis
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <Input
               type="text"
-              placeholder="Поиск по №, ткани или комм..."
+              placeholder={isArchiveMode ? 'Поиск по архиву: №, ткань, комм…' : 'Поиск по №, ткани или комм...'}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 h-9 w-full md:max-w-xs"
@@ -741,6 +783,7 @@ export function OrderList({ mode = 'status', status, dateFilterField }: OrderLis
                                 </DropdownMenuItem>
                               </>
                             )}
+                            {renderPrevStageItem(order)}
                             {order.status === 'PENDING' && order.crmId && (
                               <DropdownMenuItem onClick={() => returnToUnsortedMutation.mutate(order.id)}>
                                 <Inbox className="mr-2 h-4 w-4" />Вернуть в «Не разобранные»
@@ -845,6 +888,7 @@ export function OrderList({ mode = 'status', status, dateFilterField }: OrderLis
                               </DropdownMenuItem>
                             </>
                           )}
+                          {renderPrevStageItem(order)}
                           {order.status === 'PENDING' && order.crmId && (
                             <DropdownMenuItem onClick={() => returnToUnsortedMutation.mutate(order.id)}>
                               <Inbox className="mr-2 h-4 w-4" />Вернуть в «Не разобранные»
@@ -1427,17 +1471,24 @@ function EmptyState({ mode = 'status', status, hasSearch }: EmptyStateProps) {
   const c = mode === 'waiting' ? waitingConfig : (status ? config[status] : waitingConfig)
   const Icon = hasSearch ? Search : c.icon
 
+  // Поиск разграничен по архиву — подсказываем, где искать остальное,
+  // иначе «не нашёл» читается как «заказа нет вообще».
+  const isArchive = mode !== 'waiting' && status === 'ARCHIVED'
+  const searchHint = isArchive
+    ? 'Здесь ищутся только архивные заказы. Заказы в работе — на вкладках «Нужно заказать», «Заказано», «На складе», «В ожидании».'
+    : 'Поиск не заходит в архив. Если заказ уже закрыт — ищите его на вкладке «Архив».'
+
   return (
     <div className="bg-white rounded-xl border border-slate-300 border-dashed p-12 flex flex-col items-center justify-center gap-3 text-center">
       <div className={cn("w-14 h-14 rounded-full flex items-center justify-center", hasSearch ? "text-slate-400 bg-slate-100" : c.tone)}>
         <Icon className="w-7 h-7" />
       </div>
-      <div className="max-w-xs">
+      <div className={cn("max-w-xs", hasSearch && "max-w-md")}>
         <p className="text-base font-semibold text-slate-800">
-          {hasSearch ? 'Ничего не найдено' : c.title}
+          {hasSearch ? (isArchive ? 'В архиве ничего не найдено' : 'Ничего не найдено') : c.title}
         </p>
         <p className="text-sm text-slate-500 mt-1 leading-relaxed">
-          {hasSearch ? 'Попробуйте изменить запрос или сбросить поиск' : c.subtitle}
+          {hasSearch ? searchHint : c.subtitle}
         </p>
       </div>
     </div>
